@@ -1,11 +1,11 @@
 /**
  * Request-Level Context Helper
- * 
+ *
  * Provides a unified way to get user + tenant context in a single call,
  * eliminating redundant master database queries within the same request.
  */
 
-import { Request } from "next/server";
+import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { getTenantContext, TenantInfo } from "@/lib/tenant-context";
 
@@ -16,7 +16,7 @@ export interface RequestContext {
 
 // Request-scoped cache (cleared after request completes)
 // Using WeakMap so it's automatically garbage collected
-const requestCache = new WeakMap<Request, Map<string, RequestContext>>();
+const requestCache = new WeakMap<NextRequest, Map<string, RequestContext>>();
 
 /**
  * Get request context (user + tenant) with request-level caching
@@ -25,7 +25,7 @@ const requestCache = new WeakMap<Request, Map<string, RequestContext>>();
  * @returns Request context or null if unauthorized
  */
 export async function getRequestContext(
-  req: Request,
+  req: NextRequest,
   orgId: string
 ): Promise<RequestContext | null> {
   // Check request cache first (same request = same context)

@@ -1,4 +1,4 @@
-import { Client, Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 import { getSSLConfig } from "@/lib/db/ssl-config";
 
 const tenantPools = new Map<string, Pool>();
@@ -26,10 +26,11 @@ function getTenantPool(connectionString: string): Pool {
  */
 export async function withTenantConnection<T>(
   connectionString: string,
-  fn: (client: Client) => Promise<T>
+  fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
   const pool = getTenantPool(connectionString);
-  const client = await pool.connect();
+  const raw = await pool.connect();
+  const client = raw as PoolClient;
   try {
     return await fn(client);
   } finally {

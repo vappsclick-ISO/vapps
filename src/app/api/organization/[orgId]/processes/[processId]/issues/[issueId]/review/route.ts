@@ -109,7 +109,7 @@ export async function GET(
     console.log("[Review GET] Using params:", { orgId, issueId });
 
     // Get tenant database client
-    const client = await getTenantClient(orgId);
+    client = await getTenantClient(orgId);
 
     // Fetch review data for this issue
     const result = await client.query(

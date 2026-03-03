@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ interface InviteData {
   expiresAt: string;
 }
 
-export default function InvitePage() {
+function InvitePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -454,5 +454,24 @@ export default function InvitePage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function InvitePageFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
+      <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground">Loading invitation...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function InvitePage() {
+  return (
+    <Suspense fallback={<InvitePageFallback />}>
+      <InvitePageContent />
+    </Suspense>
   );
 }

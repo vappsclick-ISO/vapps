@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Login from "@/components/Auth/Login";
 import Register from "@/components/Auth/Register";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-const AuthPage = () => {
+function AuthPageContent() {
   const [isLogin, setIsLogin] = useState(true);
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
@@ -37,6 +37,12 @@ const AuthPage = () => {
       )}
     </div>
   );
-};
+}
 
-export default AuthPage;
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/40"><div className="animate-pulse text-muted-foreground">Loading...</div></div>}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}

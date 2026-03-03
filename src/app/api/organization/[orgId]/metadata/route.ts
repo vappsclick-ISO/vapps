@@ -46,7 +46,7 @@ export async function GET(
       );
     }
   } catch (error: any) {
-    console.error(`Error fetching ${type}:`, error);
+    console.error("Error fetching metadata:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
@@ -138,7 +138,7 @@ export async function POST(
       );
     }
   } catch (error: any) {
-    console.error(`Error adding ${type}:`, error);
+    console.error("Error adding metadata:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }

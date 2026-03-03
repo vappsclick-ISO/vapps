@@ -77,23 +77,23 @@ const Step11 = () => {
 
           <div className="flex justify-between items-center">
             <span>Products & Inventory</span>
-            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step6.products.length} products</span>
+            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step5.products.length} products</span>
           </div>
 
           <div className="flex justify-between items-center">
             <span>Customers</span>
-            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step7.customers.length} customers</span>
+            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step6.customers.length} customers</span>
           </div>
 
           <div className="flex justify-between items-center">
             <span>Vendors</span>
-            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step7.vendors.length} vendors</span>
+            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step6.vendors.length} vendors</span>
           </div>
 
           <div className="flex justify-between items-center">
             <span>Dashboard Widgets</span>
             <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">
-              {Object.values(data.step9.widgets).filter(Boolean).length} widgets
+              {Object.values(data.step8.widgets).filter(Boolean).length} widgets
             </span>
           </div>
         </div>
@@ -102,9 +102,9 @@ const Step11 = () => {
       <div className="border rounded-lg p-6 space-y-4">
         <h2 className="text-xl font-semibold">Security Settings</h2>
         <div className="grid grid-cols-1 gap-4">
-          <p className="flex justify-between"><span>Two-Factor Authentication:</span> <span>{data.step10.require2FA ? "✓ Enabled" : <span className="text-red-500">✗ Disabled</span>}</span></p>
-          <p className="flex justify-between"><span>Audit Logging:</span> <span>{data.step10.logAllActions ? "✓ Enabled" : "✗ Disabled"}</span></p>
-          <p className="flex justify-between"><span>Backup Frequency:</span> <span>{data.step10.backupFrequency || "Daily"}</span></p>
+          <p className="flex justify-between"><span>Two-Factor Authentication:</span> <span>{data.step9.require2FA ? "✓ Enabled" : <span className="text-red-500">✗ Disabled</span>}</span></p>
+          <p className="flex justify-between"><span>Audit Logging:</span> <span>{data.step9.logAllActions ? "✓ Enabled" : "✗ Disabled"}</span></p>
+          <p className="flex justify-between"><span>Backup Frequency:</span> <span>{data.step9.backupFrequency || "Daily"}</span></p>
         </div>
       </div>
 

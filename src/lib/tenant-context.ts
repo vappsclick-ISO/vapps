@@ -64,9 +64,9 @@ export async function getTenantContext(
     return null;
   }
 
-  const userRole = org.ownerId === userId 
-    ? "owner" 
-    : (org.users[0]?.role || "member");
+  const userRole: TenantInfo["userRole"] = org.ownerId === userId
+    ? "owner"
+    : ((org.users[0]?.role || "member") as TenantInfo["userRole"]);
 
   const tenantInfo: TenantInfo = {
     orgId: org.id,

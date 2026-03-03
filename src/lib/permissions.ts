@@ -20,12 +20,11 @@ export const PERMISSION_KEYS = [
   "manage_teams",
   "manage_sites",
   "manage_processes",
-  // COMMENTED OUT FOR NOW - keeping only active permissions:
-  // "create_issues",
-  // "verify_issues",
-  // "view_reports",
-  // "export_data",
-  // "manage_documents",
+  "create_issues",
+  "verify_issues",
+  "view_reports",
+  "export_data",
+  "manage_documents",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -46,12 +45,11 @@ export const DEFAULT_PERMISSIONS: PermissionRow[] = [
   { key: "manage_teams", label: PERMISSION_LABELS.manage_teams, admin: true, manager: false, member: false },
   { key: "manage_sites", label: PERMISSION_LABELS.manage_sites, admin: true, manager: true, member: false },
   { key: "manage_processes", label: PERMISSION_LABELS.manage_processes, admin: true, manager: true, member: false },
-  // COMMENTED OUT FOR NOW - keeping only active permissions:
-  // { key: "create_issues", label: PERMISSION_LABELS.create_issues, admin: true, manager: true, member: true },
-  // { key: "verify_issues", label: PERMISSION_LABELS.verify_issues, admin: true, manager: true, member: false },
-  // { key: "view_reports", label: PERMISSION_LABELS.view_reports, admin: true, manager: true, member: true },
-  // { key: "export_data", label: PERMISSION_LABELS.export_data, admin: true, manager: false, member: false },
-  // { key: "manage_documents", label: PERMISSION_LABELS.manage_documents, admin: true, manager: true, member: true },
+  { key: "create_issues", label: PERMISSION_LABELS.create_issues, admin: true, manager: true, member: true },
+  { key: "verify_issues", label: PERMISSION_LABELS.verify_issues, admin: true, manager: true, member: false },
+  { key: "view_reports", label: PERMISSION_LABELS.view_reports, admin: true, manager: true, member: true },
+  { key: "export_data", label: PERMISSION_LABELS.export_data, admin: true, manager: false, member: false },
+  { key: "manage_documents", label: PERMISSION_LABELS.manage_documents, admin: true, manager: true, member: true },
 ];
 
 /** Stored shape in DB: { [key]: { admin, manager, member } } */

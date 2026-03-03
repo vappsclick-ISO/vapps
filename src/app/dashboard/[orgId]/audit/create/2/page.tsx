@@ -181,6 +181,7 @@ const PROGRAM_CRITERIA_TO_AUDIT_CRITERIA: Record<string, string> = {
   esg: "ESG & SUSTAINABILITY (GRI / IFRS S1/S2)",
   legal: "ISO 27001 INFORMATION SECURITY",
 };
+const AUDIT_CRITERIA = Object.values(PROGRAM_CRITERIA_TO_AUDIT_CRITERIA);
 const PROGRAM_AUDIT_TYPE_TO_PLAN: Record<string, string> = {
   fpa: "FPA",
   spa: "SPA",

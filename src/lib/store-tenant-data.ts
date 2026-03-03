@@ -109,7 +109,7 @@ export async function storeTenantData(
 
       // 5. Store Products (from step5)
       if (data.step5?.products && data.step5.products.length > 0) {
-        for (const product of data.step6.products) {
+        for (const product of data.step5.products) {
           await client.query(
             `INSERT INTO "products" (
               "id", "sku", "name", "category", "unit", "cost", "reorder", "createdAt", "updatedAt"

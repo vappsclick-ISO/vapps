@@ -467,7 +467,7 @@ class ApiClient {
   getIssues(orgId: string, processId: string, sprintId?: string | null) {
     return this.get<{ issues: any[] }>(
       `/organization/${orgId}/processes/${processId}/issues`,
-      sprintId !== undefined ? { sprintId: sprintId || null } : undefined
+      sprintId != null && sprintId !== "" ? { sprintId } : undefined
     );
   }
 
@@ -829,17 +829,18 @@ class ApiClient {
     processId: string,
     issueId: string,
     data: {
-      verificationType: "effective" | "ineffective";
+      verificationStatus: "effective" | "ineffective";
       // Effective fields
       closureComments?: string;
       closeOutDate?: string;
       verificationDate?: string;
       signature?: string;
       verificationFiles?: Array<{ name: string; size: number; type: string; key: string }>;
-      // Ineffective fields
-      newInstructions?: string;
-      newAssignee?: string | string[];
-      newDueDate?: string;
+      kpiScore?: number;
+      // Ineffective / reassignment fields (API uses these names)
+      reassignedTo?: string | string[];
+      reassignmentInstructions?: string;
+      reassignmentDueDate?: string;
       reassignmentFiles?: Array<{ name: string; size: number; type: string; key: string }>;
     }
   ) {
@@ -858,17 +859,6 @@ class ApiClient {
   getIssueVerification(orgId: string, processId: string, issueId: string) {
     return this.get<{ verification: any | null }>(
       `/organization/${orgId}/processes/${processId}/issues/${issueId}/verify`
-    );
-  }
-
-  /**
-   * Get all users for a process
-   * @param orgId - Organization ID
-   * @param processId - Process ID
-   */
-  getProcessUsers(orgId: string, processId: string) {
-    return this.get<{ users: Array<{ id: string; name: string; email: string; role: string }> }>(
-      `/organization/${orgId}/processes/${processId}/users`
     );
   }
 

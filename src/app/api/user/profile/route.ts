@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest) {
 
     const existingUser = await prisma.user.findUnique({
       where: { id: currentUser.id },
-      select: { email: true, ...profileSelect },
+      select: profileSelect,
     });
     if (!existingUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

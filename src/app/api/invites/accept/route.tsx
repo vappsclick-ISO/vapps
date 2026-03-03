@@ -157,7 +157,8 @@ export async function POST(req: NextRequest) {
             });
           } catch (updateError: any) {
             // Log but don't fail - name update is not critical
-            logger.warn("Failed to update user name from invitation", updateError, {
+            logger.warn("Failed to update user name from invitation", {
+              error: updateError,
               userId: user.id,
               name: masterInvite.name,
             });

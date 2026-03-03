@@ -14,8 +14,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string; userId: string }> }
 ) {
+  const { orgId, userId } = await params;
   try {
-    const { orgId, userId } = await params;
     const ctx = await getRequestContext(req, orgId);
     
     if (!ctx) {
@@ -94,7 +94,7 @@ export async function PUT(
       normalizedRole = normalizeRole(role) as Role;
       
       // Enforce hierarchy: cannot assign a role higher than your own
-      if (isRoleHigher(normalizedRole, currentUserRole as Role)) {
+      if (isRoleHigher(normalizedRole as Role, currentUserRole as Role)) {
         return NextResponse.json(
           { error: "You cannot assign a role higher than your own." },
           { status: 403 }
@@ -116,7 +116,8 @@ export async function PUT(
           name: name.trim(),
         });
       } catch (updateError: any) {
-        logger.warn("Failed to update user name", updateError, {
+        logger.warn("Failed to update user name", {
+          error: updateError,
           userId,
           name,
         });
@@ -227,8 +228,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string; userId: string }> }
 ) {
+  const { orgId, userId } = await params;
   try {
-    const { orgId, userId } = await params;
     const ctx = await getRequestContext(req, orgId);
     
     if (!ctx) {

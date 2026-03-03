@@ -8,7 +8,7 @@ import { getTenantClient } from "@/lib/db/tenant-pool";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
     const { orgId } = await params;
@@ -71,35 +71,35 @@ export async function GET(
         })
       );
 
-      await client.end();
+      client.release();
 
       return NextResponse.json({
         organization: {
-          id: org.id,
-          name: org.name,
-          createdAt: org.createdAt,
+          id: orgId,
+          name: tenant.orgName,
+          createdAt: null,
         },
         database: {
-          name: org.database.dbName,
-          host: org.database.dbHost,
-          port: org.database.dbPort,
-          user: org.database.dbUser,
+          name: tenant.dbName,
+          host: tenant.dbHost,
+          port: tenant.dbPort,
+          user: tenant.dbUser,
           size: dbSizeResult.rows[0]?.size || "0 bytes",
           activeConnections: parseInt(connectionCountResult.rows[0]?.connections || "0"),
         },
         tables: tableCounts,
-        connectionString: org.database.connectionString, // For reference, but be careful in production
+        connectionString: tenant.connectionString, // For reference, but be careful in production
       });
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         {
           error: "Failed to connect to tenant database",
           message: dbError.message,
           database: {
-            name: org.database.dbName,
-            host: org.database.dbHost,
-            port: org.database.dbPort,
+            name: tenant.dbName,
+            host: tenant.dbHost,
+            port: tenant.dbPort,
           },
         },
         { status: 500 }

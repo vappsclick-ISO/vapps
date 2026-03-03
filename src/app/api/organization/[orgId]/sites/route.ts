@@ -3,7 +3,8 @@ import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
-import { roleToLeadershipTier } from "@/lib/roles";
+import { roleToLeadershipTier, type Role } from "@/lib/roles";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import crypto from "crypto";
 
 /**

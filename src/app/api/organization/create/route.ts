@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
           // Create organization first
           const org = await tx.organization.create({
             data: {
-              name: data.step1.companyName.trim(),
+              name: data.step1.companyName!.trim(),
               ownerId: user.id,
             },
           });
@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          return { organization: org, dbInstance: dbInst };
+          return { organization: org, dbInstance: dbInst, tenantDb };
         },
         {
           timeout: 30000, // 30 seconds - enough time for database creation
@@ -281,6 +281,7 @@ export async function POST(req: NextRequest) {
 
       organization = result.organization;
       dbInstance = result.dbInstance;
+      tenantDb = result.tenantDb;
 
       // 9. Run migrations on tenant database to create tables
       try {
