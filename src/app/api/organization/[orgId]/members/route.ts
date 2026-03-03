@@ -64,11 +64,12 @@ export async function GET(
       },
     });
 
+    type MembershipRow = (typeof memberships)[number];
     const ownerIdForFilter = organization?.ownerId;
     const nonOwnerUserIds = memberships
-      .filter((m) => m.user.id !== ownerIdForFilter)
-      .map((m) => m.user.id);
-    const allMemberUserIds = memberships.map((m) => m.user.id);
+      .filter((m: MembershipRow) => m.user.id !== ownerIdForFilter)
+      .map((m: MembershipRow) => m.user.id);
+    const allMemberUserIds = memberships.map((m: MembershipRow) => m.user.id);
 
     const inviteRoles: Record<string, string> = {};
     const siteAssignments: Record<string, { siteId: string; siteName: string }[]> = {};
