@@ -1,6 +1,6 @@
 .auth {
     .content-column {
-        background: url('../../public/images/auth-bg.png'), #F1FDF4;
+        background: url('/images/auth-bg.png'), #F1FDF4;
     }
     .form-column {
         background: #74C792;
