@@ -194,7 +194,7 @@ export async function GET(
 
     const ownerId = organization.ownerId;
 
-    const activeMembers = memberships.map((m) => {
+    const activeMembers = memberships.map((m: MembershipRow) => {
       const tier = roleToLeadershipTier(m.role);
       const sites = siteAssignments[m.user.id] || [];
       const processes = processAssignments[m.user.id] || [];
