@@ -188,7 +188,8 @@ export async function GET(
         },
         select: { activityId: true },
       });
-      const dismissedIds = dismissals.map((d) => d.activityId);
+      type DismissalRow = (typeof dismissals)[number];
+      const dismissedIds = dismissals.map((d: DismissalRow) => d.activityId);
 
       return NextResponse.json({
         activities,
