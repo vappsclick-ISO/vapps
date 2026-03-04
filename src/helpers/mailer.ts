@@ -40,7 +40,8 @@ export async function sendVerificationEmail({
   email: string;
   token: string;
 }) {
-  const verifyUrl = `${process.env.NEXTAUTH_URL}/api/auth/verify-email?token=${token}`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
     from: `"VApps" <${process.env.SMTP_FROM || "noreply@vapps.com"}>`,

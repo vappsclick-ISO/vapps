@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Base URL for redirects (avoids 0.0.0.0 on EC2/behind proxy when req.url is internal)
+const getRedirectBase = () =>
+  process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.nextUrl.searchParams.get("token");
+    const base = getRedirectBase();
 
     if (!token) {
-      return NextResponse.redirect(new URL("/auth/login?error=InvalidToken", req.url));
+      return NextResponse.redirect(new URL("/auth/login?error=InvalidToken", base));
     }
 
     const record = await prisma.verificationToken.findUnique({
@@ -14,9 +19,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!record || record.expires < new Date()) {
-      return NextResponse.redirect(
-        new URL("/auth/login?error=TokenExpired", req.url)
-      );
+      return NextResponse.redirect(new URL("/auth/login?error=TokenExpired", base));
     }
 
     // ✅ Verify user
@@ -30,13 +33,9 @@ export async function GET(req: NextRequest) {
       where: { token },
     });
 
-    return NextResponse.redirect(
-      new URL("/auth/?verified=true", req.url)
-    );
+    return NextResponse.redirect(new URL("/auth/?verified=true", base));
   } catch (error) {
     console.error("VERIFY_EMAIL_ERROR", error);
-    return NextResponse.redirect(
-      new URL("/auth/?error=VerificationFailed", req.url)
-    );
+    return NextResponse.redirect(new URL("/auth/?error=VerificationFailed", getRedirectBase()));
   }
 }
