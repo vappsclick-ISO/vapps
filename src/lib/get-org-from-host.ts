@@ -22,17 +22,23 @@ export function getHost(req: NextRequest): string {
 }
 
 /**
- * Extract the subdomain from the host.
- * Examples:
- *   stellixsoft.lvh.me:3000 → "stellixsoft"
- *   app.lvh.me:3000         → "app"
- *   localhost:3000          → null
+ * Extract the tenant subdomain from the host.
+ * - Apex domain (e.g. vapps.click) or www.vapps.click → null (main app).
+ * - Tenant subdomain (e.g. stellixsoft.vapps.click) → "stellixsoft".
+ * - Dev: app.lvh.me → "app", stellixsoft.lvh.me → "stellixsoft".
  */
 export function getSubdomainFromHost(host: string): string | null {
   const hostname = (host.split(":")[0] ?? "").toLowerCase();
   if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
     return null;
   }
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.toLowerCase()?.trim();
+  if (rootDomain) {
+    if (hostname === rootDomain || hostname === `www.${rootDomain}`) return null;
+    if (hostname.endsWith(`.${rootDomain}`)) return hostname.slice(0, -(rootDomain.length + 1));
+  }
+
   const parts = hostname.split(".");
   if (parts.length < 2) return null;
   const sub = parts[0];

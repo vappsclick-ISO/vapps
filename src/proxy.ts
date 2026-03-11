@@ -18,16 +18,25 @@ function getHost(request: NextRequest): string {
 }
 
 /**
- * Extract subdomain from host.
- * e.g. stellix.lvh.me:3000 -> stellix; app.lvh.me -> app; localhost:3000 -> null.
+ * Extract tenant subdomain from host.
+ * - Apex domain (e.g. vapps.click) or www.vapps.click → null (main app: login, org list).
+ * - Tenant subdomain (e.g. stellixsoft.vapps.click) → "stellixsoft".
+ * - Dev: app.lvh.me → "app" (reserved), stellixsoft.lvh.me → "stellixsoft".
  */
 function getSubdomain(host: string): string | null {
-  const hostname = host.split(":")[0] ?? "";
+  const hostname = (host.split(":")[0] ?? "").toLowerCase();
   if (!hostname || hostname === "localhost" || hostname === "127.0.0.1")
     return null;
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.toLowerCase()?.trim();
+  if (rootDomain) {
+    if (hostname === rootDomain || hostname === `www.${rootDomain}`) return null;
+    if (hostname.endsWith(`.${rootDomain}`)) return hostname.slice(0, -(rootDomain.length + 1));
+  }
+
   const parts = hostname.split(".");
   if (parts.length < 2) return null;
-  const sub = parts[0]?.toLowerCase();
+  const sub = parts[0];
   if (!sub) return null;
   return sub;
 }

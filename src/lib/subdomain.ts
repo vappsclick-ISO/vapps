@@ -22,15 +22,23 @@ export function getOrgDashboardUrl(slug: string): string {
 const RESERVED_SUBDOMAINS = ["app", "www", "localhost"];
 
 /**
- * Whether the current origin is a tenant subdomain (e.g. stellixsoft.lvh.me).
+ * Whether the current origin is a tenant subdomain (e.g. stellixsoft.vapps.click or stellixsoft.lvh.me).
+ * Apex domain (vapps.click) or www.vapps.click is main app, not tenant.
  * Only valid on the client (uses window).
  */
 function isTenantSubdomain(): boolean {
   if (typeof window === "undefined") return false;
-  const hostname = window.location.hostname;
+  const hostname = window.location.hostname.toLowerCase();
   if (hostname === "localhost" || hostname === "127.0.0.1") return false;
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.toLowerCase()?.trim();
+  if (rootDomain) {
+    if (hostname === rootDomain || hostname === `www.${rootDomain}`) return false;
+    if (hostname.endsWith(`.${rootDomain}`)) return true;
+  }
+
   const parts = hostname.split(".");
-  const sub = parts.length >= 2 ? parts[0]?.toLowerCase() : null;
+  const sub = parts.length >= 2 ? parts[0] : null;
   return !!sub && !RESERVED_SUBDOMAINS.includes(sub);
 }
 
