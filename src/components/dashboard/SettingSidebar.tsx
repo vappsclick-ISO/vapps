@@ -15,83 +15,29 @@ import {
   UserCog,
   FileCheck,
 } from 'lucide-react';
+import { getDashboardPath } from '@/lib/subdomain';
 
 const SettingSidebar = () => {
   const params = useParams();
   const pathname = usePathname();
-  const orgId = params?.orgId as string;
+  const slug = params?.orgId as string; // orgId param is slug when on subdomain
 
   const menuItems = [
-    {
-      title: 'Organization Profile',
-      subtitle: 'Company details and branding',
-      icon: Home,
-      path: `/dashboard/${orgId}/settings/organization-profile`,
-    },
-    {
-      title: 'Sites & Departments',
-      subtitle: 'Locations and structure',
-      icon: MapPin,
-      path: `/dashboard/${orgId}/settings/sites-departments`,
-    },
-    {
-      title: 'Roles',
-      subtitle: 'Leadership role definitions',
-      icon: UserCog,
-      path: `/dashboard/${orgId}/settings/roles`,
-    },
-    {
-      title: 'Teams',
-      subtitle: 'Organization users',
-      icon: Users,
-      path: `/dashboard/${orgId}/settings/teams`,
-    },
-    {
-      title: 'Permissions',
-      subtitle: 'Role-based access control',
-      icon: Shield,
-      path: `/dashboard/${orgId}/settings/permissions`,
-    },
-    {
-      title: 'Authentication & Access',
-      subtitle: 'Login and security',
-      icon: Shield,
-      path: `/dashboard/${orgId}/settings/authentication-access`,
-    },
-    {
-      title: 'Billing & Subscription',
-      subtitle: 'Plans and payments',
-      icon: CreditCard,
-      path: `/dashboard/${orgId}/settings/billing-subscription`,
-    },
-    {
-      title: 'Integrations',
-      subtitle: 'Connected apps and APIs',
-      icon: Plug,
-      path: `/dashboard/${orgId}/settings/integrations`,
-    },
-    {
-      title: 'Notifications',
-      subtitle: 'Email and alerts',
-      icon: Bell,
-      path: `/dashboard/${orgId}/settings/notifications`,
-    },
-    {
-      title: 'KPI & Reports',
-      subtitle: 'Metrics and dashboards',
-      icon: BarChart,
-      path: `/dashboard/${orgId}/settings/kpi-reports`,
-    },
-    {
-      title: 'Audit Checklist',
-      subtitle: 'Question management',
-      icon: FileCheck,
-      path: `/dashboard/${orgId}/settings/audit-checklist`,
-    },
-  ];
+    { title: 'Organization Profile', subtitle: 'Company details and branding', icon: Home, path: 'settings/organization-profile' },
+    { title: 'Sites & Departments', subtitle: 'Locations and structure', icon: MapPin, path: 'settings/sites-departments' },
+    { title: 'Roles', subtitle: 'Leadership role definitions', icon: UserCog, path: 'settings/roles' },
+    { title: 'Teams', subtitle: 'Organization users', icon: Users, path: 'settings/teams' },
+    { title: 'Permissions', subtitle: 'Role-based access control', icon: Shield, path: 'settings/permissions' },
+    { title: 'Authentication & Access', subtitle: 'Login and security', icon: Shield, path: 'settings/authentication-access' },
+    { title: 'Billing & Subscription', subtitle: 'Plans and payments', icon: CreditCard, path: 'settings/billing-subscription' },
+    { title: 'Integrations', subtitle: 'Connected apps and APIs', icon: Plug, path: 'settings/integrations' },
+    { title: 'Notifications', subtitle: 'Email and alerts', icon: Bell, path: 'settings/notifications' },
+    { title: 'KPI & Reports', subtitle: 'Metrics and dashboards', icon: BarChart, path: 'settings/kpi-reports' },
+    { title: 'Audit Checklist', subtitle: 'Question management', icon: FileCheck, path: 'settings/audit-checklist' },
+  ].map((item) => ({ ...item, href: getDashboardPath(slug, item.path) }));
 
-  // Don't render links if orgId is not available
-  if (!orgId || orgId === 'undefined') {
+  // Don't render links if slug/orgId is not available
+  if (!slug || slug === 'undefined') {
     return (
       <aside className="w-64 p-4 border-r border-gray-200 bg-white">
         <h2 className="text-lg font-semibold mb-6">Settings</h2>
@@ -106,11 +52,11 @@ const SettingSidebar = () => {
       <p className="text-sm text-gray-500 mb-4">Manage your workspace configuration</p>
       <ul className="space-y-2">
         {menuItems.map((item, index) => {
-          const isActive = pathname === item.path;
+          const isActive = pathname === item.href || pathname.endsWith(item.path);
           const Icon = item.icon;
           
           return (
-            <Link key={index} href={item.path}>
+            <Link key={index} href={item.href}>
               <li
                 className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
                   isActive ? 'bg-green-50 text-green-600' : 'hover:bg-gray-100 text-gray-700'

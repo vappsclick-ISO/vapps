@@ -8,8 +8,14 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    if (process.env.NODE_ENV === "development") {
+      console.log("[GET /api/organization/list] Incoming cookies:", req.headers.get("cookie") ?? "(none)");
+    }
+    const user = await getCurrentUser(req);
     if (!user || !user.id) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[GET /api/organization/list] No session – user:", user);
+      }
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -27,6 +33,7 @@ export async function GET(req: NextRequest) {
         organization: {
           select: {
             id: true,
+            slug: true,
             name: true,
             createdAt: true,
             _count: {
@@ -44,9 +51,10 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Format response
+    // Format response (slug used for URL-friendly routes)
     const organizations = userOrgs.map((userOrg) => ({
       id: userOrg.organization.id,
+      slug: userOrg.organization.slug ?? userOrg.organization.id,
       name: userOrg.organization.name,
       role: userOrg.role, // owner, admin, or member
       createdAt: userOrg.organization.createdAt,

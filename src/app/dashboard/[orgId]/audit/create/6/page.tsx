@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
@@ -308,17 +309,32 @@ export default function CreateAuditStep6Page() {
               if (finalDecision === "effective") {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "closed");
                 toast.success("Audit complete. Status: Closed.");
+              } else {
+                await apiClient.updateAuditPlan(orgId, auditPlanId, {
+                  step6Data: {
+                    managementComments,
+                    finalDecision,
+                    dateApproved,
+                    timeApproved,
+                  },
+                });
+                await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
+                toast.success("Returned to Auditee for revision.");
               }
-              router.push(`/dashboard/${orgId}/audit`);
+              router.push(getDashboardPath(orgId, "audit"));
             } catch (e) {
               console.error(e);
-              toast.error("Failed to close audit.");
+              toast.error(finalDecision === "effective" ? "Failed to close audit." : "Failed to return to Auditee.");
             } finally {
               setClosing(false);
             }
           }}
         >
-          {closing ? "Closing…" : finalDecision === "effective" ? "Finalize Audit & Close" : "Return to Audit List"}
+          {closing
+            ? "Saving…"
+            : finalDecision === "effective"
+              ? "Finalize Audit & Close"
+              : "Return to Auditee"}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

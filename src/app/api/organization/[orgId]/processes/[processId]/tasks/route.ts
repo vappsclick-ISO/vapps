@@ -22,12 +22,11 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
-      await client.connect();
 
       // Verify process exists
       const processResult = await client.query(
@@ -130,6 +129,7 @@ export async function POST(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -138,8 +138,7 @@ export async function POST(
       );
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 

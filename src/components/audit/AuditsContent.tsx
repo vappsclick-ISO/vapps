@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
+import { useOrg } from "@/components/providers/org-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,7 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import AuditHistoryDialog from "./AuditHistoryDialog";
+import AuditHistoryDialog, { AuditHistoryEntry } from "./AuditHistoryDialog";
 
 const NEXT_STEP_LABELS: Record<number, string> = {
   3: "Complete Findings (Step 3)",
@@ -113,6 +115,7 @@ function getAuditStatusByDays(
     "findings_submitted_to_auditee",
     "ca_submitted_to_auditor",
     "pending_closure",
+    "verification_ineffective",
   ].includes(planStatus);
   if (inProgress || planStatus === "draft") {
     if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
@@ -355,6 +358,19 @@ function formatDate(date: string | Date | null): string {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
 }
 
+function formatDateTime(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function mapPlansToAudits(list: any[]): Audit[] {
   return list.map((p: any) => {
     const auditPart = p.auditNumber || p.id || "—";
@@ -400,19 +416,135 @@ function mapPlansToAudits(list: any[]): Audit[] {
   });
 }
 
+function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] {
+  const entries: AuditHistoryEntry[] = [];
+  const createdAt: string | null = plan.createdAt ?? plan.planSubmittedAt ?? null;
+
+  if (createdAt) {
+    entries.push({
+      id: "created",
+      type: "Created",
+      title: "Audit created",
+      description: `Audit plan created${plan.criteria ? ` (criteria: ${plan.criteria})` : ""}.`,
+      date: formatDateTime(createdAt),
+      by: "Lead Auditor",
+    });
+  }
+
+  if (plan.planSubmittedAt) {
+    entries.push({
+      id: "plan_submitted",
+      type: "Updated",
+      title: "Plan submitted to auditee",
+      description: "Lead auditor submitted the audit plan to the auditee.",
+      date: formatDateTime(plan.planSubmittedAt),
+      by: "Lead Auditor",
+    });
+  }
+
+  if (plan.findingsSubmittedAt) {
+    entries.push({
+      id: "findings_submitted",
+      type: "Updated",
+      title: "Findings submitted to auditee",
+      description: "Assigned auditor submitted audit findings to the auditee.",
+      date: formatDateTime(plan.findingsSubmittedAt),
+      by: "Assigned Auditor",
+    });
+  }
+
+  const step4 = plan.step4Data as { auditeeComments?: string; dateOfReview?: string } | null | undefined;
+  if (step4 && plan.status && ["ca_submitted_to_auditor", "pending_closure", "verification_ineffective", "closed"].includes(plan.status)) {
+    entries.push({
+      id: "ca_submitted",
+      type: "Updated",
+      title: "Corrective action submitted",
+      description: step4.auditeeComments && String(step4.auditeeComments).trim().length > 0
+        ? String(step4.auditeeComments)
+        : "Auditee submitted systemic corrective action for review.",
+      date: formatDateTime(step4.dateOfReview ?? plan.updatedAt ?? plan.planSubmittedAt ?? plan.createdAt ?? null),
+      by: "Auditee",
+    });
+  }
+
+  const step5 = plan.step5Data as { verificationOutcome?: string; auditorComments?: string; verificationStartedAt?: string } | null | undefined;
+  if (step5 && (step5.verificationOutcome === "effective" || step5.verificationOutcome === "ineffective")) {
+    entries.push({
+      id: "step5_verification",
+      type: "Updated",
+      title: `Effectiveness verification marked ${step5.verificationOutcome === "effective" ? "effective" : "ineffective"}`,
+      description: step5.auditorComments && String(step5.auditorComments).trim().length > 0
+        ? String(step5.auditorComments)
+        : step5.verificationOutcome === "effective"
+          ? "Assigned auditor verified corrective actions as effective."
+          : "Assigned auditor marked corrective actions as ineffective.",
+      date: formatDateTime(step5.verificationStartedAt ?? plan.updatedAt ?? null),
+      by: "Assigned Auditor",
+    });
+
+    if (step5.verificationOutcome === "ineffective") {
+      entries.push({
+        id: "returned_step5",
+        type: "Escalated",
+        title: "Returned to auditee from Step 5",
+        description: step5.auditorComments && String(step5.auditorComments).trim().length > 0
+          ? String(step5.auditorComments)
+          : "Audit was returned to the auditee from Step 5 for revised corrective action.",
+        date: formatDateTime(step5.verificationStartedAt ?? plan.updatedAt ?? null),
+        by: "Assigned Auditor",
+      });
+    }
+  }
+
+  const step6 = plan.step6Data as { finalDecision?: string; managementComments?: string; dateApproved?: string; timeApproved?: string } | null | undefined;
+  if (step6 && (step6.finalDecision === "effective" || step6.finalDecision === "ineffective")) {
+    const decisionDateString = step6.dateApproved
+      ? `${step6.dateApproved} ${step6.timeApproved ?? ""}`.trim()
+      : null;
+    entries.push({
+      id: "step6_decision",
+      type: step6.finalDecision === "effective" ? "Updated" : "Escalated",
+      title: step6.finalDecision === "effective" ? "Audit finalized and closed" : "Audit re-opened by management",
+      description: step6.managementComments && String(step6.managementComments).trim().length > 0
+        ? String(step6.managementComments)
+        : step6.finalDecision === "effective"
+          ? "Management confirmed all findings are addressed and closed the audit."
+          : "Management decided the audit does not meet closure criteria and re-opened it for further action.",
+      date: formatDateTime(decisionDateString || plan.updatedAt || null),
+      by: "Lead Auditor / Management",
+    });
+
+    if (step6.finalDecision === "ineffective") {
+      entries.push({
+        id: "returned_step6",
+        type: "Escalated",
+        title: "Returned to auditee from Step 6",
+        description: step6.managementComments && String(step6.managementComments).trim().length > 0
+          ? String(step6.managementComments)
+          : "Audit was returned to the auditee from Step 6 for additional corrective action.",
+        date: formatDateTime(decisionDateString || plan.updatedAt || null),
+        by: "Lead Auditor / Management",
+      });
+    }
+  }
+
+  return entries;
+}
+
 export default function AuditsContent() {
-  const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
-  const orgId = (pathname?.match(/\/dashboard\/([^/]+)\/audit/)?.[1]) ?? "";
+  const { slug } = useOrg();
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
-  const createAuditHref = `${pathname}/create/1`;
+  const [historyEntries, setHistoryEntries] = useState<AuditHistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const createAuditHref = getDashboardPath(slug, "audit/create/1");
 
   const { data: plansData, isLoading: plansLoading } = useQuery({
-    queryKey: ["auditPlans", orgId],
-    queryFn: () => apiClient.getAuditPlans(orgId),
-    enabled: !!orgId,
+    queryKey: ["auditPlans", slug],
+    queryFn: () => apiClient.getAuditPlans(slug),
+    enabled: !!slug,
     staleTime: 60 * 1000,
   });
 
@@ -421,34 +553,53 @@ export default function AuditsContent() {
     [plansData?.plans]
   );
 
-  const handleViewHistory = useCallback((audit: Audit) => {
-    setHistoryAudit(audit);
-  }, []);
+  const handleViewHistory = useCallback(
+    async (audit: Audit) => {
+      if (!slug || !audit.auditPlanId) return;
+      setHistoryAudit(audit);
+      setHistoryLoading(true);
+      try {
+        const res = await apiClient.getAuditPlan(slug, audit.auditPlanId);
+        const plan = (res as { plan?: any }).plan;
+        if (plan) {
+          setHistoryEntries(buildAuditHistoryEntries(plan, audit));
+        } else {
+          setHistoryEntries([]);
+        }
+      } catch (e) {
+        console.error(e);
+        setHistoryEntries([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [slug]
+  );
 
   const handleEditAudit = useCallback(
     (audit: Audit, step: number) => {
-      if (audit.auditPlanId && orgId) {
+      if (audit.auditPlanId && slug) {
         const params = new URLSearchParams();
         params.set("auditPlanId", audit.auditPlanId);
         if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
         if (audit.criteria) params.set("criteria", audit.criteria);
-        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+        router.push(getDashboardPath(slug, `audit/create/${step}`) + (params.toString() ? `?${params.toString()}` : ""));
       }
     },
-    [orgId, router]
+    [slug, router]
   );
 
   const handleOpenStep = useCallback(
     (audit: Audit, step: number) => {
-      if (audit.auditPlanId && orgId) {
+      if (audit.auditPlanId && slug) {
         const params = new URLSearchParams();
         params.set("auditPlanId", audit.auditPlanId);
         if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
         if (audit.criteria) params.set("criteria", audit.criteria);
-        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+        router.push(getDashboardPath(slug, `audit/create/${step}`) + (params.toString() ? `?${params.toString()}` : ""));
       }
     },
-    [orgId, router]
+    [slug, router]
   );
 
   const columns = useMemo(
@@ -586,31 +737,45 @@ export default function AuditsContent() {
               </thead>
 
               <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => {
-                      const audit = row.original;
-                      if (!audit.auditPlanId) return;
-                      const step = getEditStep(audit, currentUserId);
-                      if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
-                      else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="p-3 text-gray-700 whitespace-nowrap"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
+                {plansLoading ? (
+                  <tr>
+                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                      Loading audits…
+                    </td>
                   </tr>
-                ))}
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                      No audits yet. Create one to get started.
+                    </td>
+                  </tr>
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const audit = row.original;
+                        if (!audit.auditPlanId) return;
+                        const step = getEditStep(audit, currentUserId);
+                        if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
+                        else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="p-3 text-gray-700 whitespace-nowrap"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -620,8 +785,17 @@ export default function AuditsContent() {
       {/* Audit History Dialog */}
       <AuditHistoryDialog
         open={!!historyAudit}
-        onOpenChange={(open) => !open && setHistoryAudit(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryAudit(null);
+            setHistoryEntries(null);
+            setHistoryLoading(false);
+          }
+        }}
         traceabilityId={historyAudit?.id ?? ""}
+        entries={historyEntries ?? []}
+        loading={historyLoading}
+        detailHistoryHref={historyAudit?.auditPlanId && slug ? `${getDashboardPath(slug, "audit/history")}?auditPlanId=${historyAudit.auditPlanId}` : null}
       />
     </>
   );

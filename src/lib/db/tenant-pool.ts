@@ -10,6 +10,7 @@
 import { Pool, PoolClient } from "pg";
 import { prisma } from "@/lib/prisma";
 import { getSSLConfig } from "@/lib/db/ssl-config";
+import { getOrgBySlugOrId } from "@/lib/org-utils";
 
 // In-memory cache of connection pools per organization
 const tenantPools = new Map<string, Pool>();
@@ -45,11 +46,18 @@ const POOL_CONFIG = {
 };
 
 /**
- * Get or create a connection pool for a tenant database
- * @param orgId - Organization ID
+ * Get or create a connection pool for a tenant database.
+ * Accepts org slug or UUID (e.g. "stellixsoft" from subdomain API routes).
+ * @param orgSlugOrId - Organization slug or UUID
  * @returns PostgreSQL connection pool
  */
-export async function getTenantPool(orgId: string): Promise<Pool> {
+export async function getTenantPool(orgSlugOrId: string): Promise<Pool> {
+  const lookup = await getOrgBySlugOrId(orgSlugOrId);
+  if (!lookup) {
+    throw new Error(`Organization not found: ${orgSlugOrId}`);
+  }
+  const orgId = lookup.id;
+
   // Return existing pool if available
   if (tenantPools.has(orgId)) {
     const pool = tenantPools.get(orgId)!;
@@ -144,11 +152,11 @@ export async function getTenantPool(orgId: string): Promise<Pool> {
   const connCacheKey = `conn:${orgId}`;
   const cachedConn = connectionStringCache.get(connCacheKey);
   let connectionString: string;
-  
+
   if (cachedConn && Date.now() < cachedConn.expiresAt) {
     connectionString = cachedConn.connectionString;
   } else {
-    // Only query master DB if not cached
+    // Only query master DB if not cached (orgId is already resolved UUID)
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
       include: { database: true },

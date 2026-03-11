@@ -27,13 +27,12 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 
-      // Verify process exists and get siteId for access check
       const processResult = await client.query(
         `SELECT id, "siteId" FROM processes WHERE id = $1`,
         [processId]
@@ -49,17 +48,15 @@ export async function GET(
 
       const processSiteId = processResult.rows[0].siteId;
 
-      // Access control by leadership tier:
-      // Top = all; Operational = assigned site(s) only; Support = assigned process only
       const org = await prisma.organization.findUnique({
-        where: { id: orgId },
+        where: { id: resolvedOrgId },
         select: { ownerId: true },
       });
       const userOrg = await prisma.userOrganization.findUnique({
         where: {
           userId_organizationId: {
             userId: ctx.user.id,
-            organizationId: orgId,
+            organizationId: resolvedOrgId,
           },
         },
         select: { role: true, leadershipTier: true },
@@ -232,6 +229,7 @@ export async function POST(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     // Validate mandatory fields
     if (!title || !title.trim()) {
@@ -263,12 +261,11 @@ export async function POST(
       );
     }
 
-    // Get user's leadership tier and role from UserOrganization
     const userOrg = await prisma.userOrganization.findUnique({
       where: {
         userId_organizationId: {
           userId: ctx.user.id,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
         },
       },
       select: {
@@ -277,9 +274,8 @@ export async function POST(
       },
     });
 
-    // Check if user is organization owner (Top leadership)
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
 
@@ -298,8 +294,7 @@ export async function POST(
       );
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 
@@ -540,7 +535,7 @@ export async function POST(
 
       // Log activity (non-blocking)
       if (ctx.user?.id) {
-        logActivity(orgId, processId, ctx.user.id, {
+        logActivity(resolvedOrgId, processId, ctx.user.id, {
           action: "issue.created",
           entityType: "issue",
           entityId: createdIssue.id,

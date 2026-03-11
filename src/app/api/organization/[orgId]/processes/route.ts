@@ -25,21 +25,22 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     // Cache key includes userId so different roles get correct filtered results
-    const cacheKey = `processes:${orgId}:${ctx.user.id}:${siteId || "all"}`;
+    const cacheKey = `processes:${resolvedOrgId}:${ctx.user.id}:${siteId || "all"}`;
     const cached = cache.get<{ processes: any[] }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
     const userOrg = await prisma.userOrganization.findUnique({
       where: {
-        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
       },
       select: { role: true, leadershipTier: true },
     });
@@ -50,7 +51,7 @@ export async function GET(
     const isOperationalLeadership = leadershipTier === "Operational";
     const isSupportLeadership = leadershipTier === "Support";
 
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
       let allowedSiteIds: string[] | null = null;
@@ -166,15 +167,14 @@ export async function POST(
     const body = await req.json();
     const { name, description, siteId } = body;
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Org owner can do anything; otherwise require manage_processes
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -206,8 +206,7 @@ export async function POST(
     }
 
     try {
-      // Use pooled connection
-      const pool = await getTenantPool(orgId);
+      const pool = await getTenantPool(resolvedOrgId);
       const client = await pool.connect();
 
       try {
@@ -250,13 +249,10 @@ export async function POST(
           [processId]
         );
 
-        // Clear cache after mutation - invalidate all process-related cache entries for this org
-        // GET endpoint uses: processes:${orgId}:${userId}:${siteId}
-        // We need to clear all user-specific entries, so use pattern matching
-        cache.clearPattern(`processes:${orgId}:*`);
-        cache.delete(cacheKeys.orgProcesses(orgId));
-        cache.delete(cacheKeys.orgProcesses(orgId, siteId));
-        cache.delete(cacheKeys.orgSites(orgId));
+        cache.clearPattern(`processes:${resolvedOrgId}:*`);
+        cache.delete(cacheKeys.orgProcesses(resolvedOrgId));
+        cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
+        cache.delete(cacheKeys.orgSites(resolvedOrgId));
 
         return NextResponse.json(
           {

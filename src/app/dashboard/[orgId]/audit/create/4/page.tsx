@@ -44,6 +44,8 @@ export default function CreateAuditStep4Page() {
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
+  const [auditorFeedbackStep5, setAuditorFeedbackStep5] = useState<string | null>(null);
+  const [managementFeedbackStep6, setManagementFeedbackStep6] = useState<string | null>(null);
   const [auditeeDisplay, setAuditeeDisplay] = useState({ name: "—", uin: "—" });
   const [processDisplay, setProcessDisplay] = useState({ name: "—", ref: "—" });
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState("—");
@@ -102,6 +104,18 @@ export default function CreateAuditStep4Page() {
           setSubmissionDate(plan.datePrepared ? format(new Date(plan.datePrepared), "dd-MM-yyyy") : format(new Date(), "dd-MM-yyyy"));
           setCurrentUserRole(plan.currentUserRole ?? null);
           setPlanStatus(plan.status ?? null);
+          const step5 = (plan as { step5Data?: { auditorComments?: string } }).step5Data;
+          if (step5 && typeof step5 === "object" && typeof step5.auditorComments === "string" && step5.auditorComments.trim()) {
+            setAuditorFeedbackStep5(step5.auditorComments.trim());
+          } else {
+            setAuditorFeedbackStep5(null);
+          }
+          const step6 = (plan as { step6Data?: { managementComments?: string } }).step6Data;
+          if (step6 && typeof step6 === "object" && typeof step6.managementComments === "string" && step6.managementComments.trim()) {
+            setManagementFeedbackStep6(step6.managementComments.trim());
+          } else {
+            setManagementFeedbackStep6(null);
+          }
         }
         const membersRes = await apiClient.getMembers(orgId);
         if (!cancelled && membersRes.teamMembers?.length) {
@@ -296,6 +310,34 @@ export default function CreateAuditStep4Page() {
           {planStatus === "closed"
             ? "View only — this audit is complete; no edits allowed."
             : "View only — only the Auditee can edit this step."}
+        </div>
+      )}
+      {planStatus === "verification_ineffective" && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 shadow-sm space-y-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-amber-900">
+                Returned for revision — Auditor feedback (Step 5: Verification ineffective)
+              </h3>
+              {auditorFeedbackStep5 ? (
+                <p className="mt-2 text-sm text-amber-900 whitespace-pre-wrap">{auditorFeedbackStep5}</p>
+              ) : (
+                <p className="mt-2 text-sm text-amber-800">The auditor marked verification as ineffective. Please revise your corrective action and resubmit.</p>
+              )}
+            </div>
+          </div>
+          {managementFeedbackStep6 && (
+            <div className="flex items-start gap-3 pt-2 border-t border-amber-200">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-amber-900">
+                  Management feedback (Step 6: Final closure — re-open)
+                </h3>
+                <p className="mt-2 text-sm text-amber-900 whitespace-pre-wrap">{managementFeedbackStep6}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
@@ -808,18 +850,21 @@ export default function CreateAuditStep4Page() {
                 type="button"
                 disabled={submittingToAuditor || !auditPlanId}
                 className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-green-500"
-              onClick={async () => {
-                if (!orgId || !auditPlanId) return;
-                setSubmittingToAuditor(true);
-                try {
-                  await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "ca_submitted_to_auditor");
-                  router.push(`/dashboard/${orgId}/audit/create/5${stepQuery}`);
-                } catch (e) {
-                  console.error(e);
-                } finally {
-                  setSubmittingToAuditor(false);
-                }
-              }}
+                onClick={async () => {
+                  if (!orgId || !auditPlanId) return;
+                  setSubmittingToAuditor(true);
+                  try {
+                    // Always save full Step 4 payload before updating status,
+                    // so corrective action data is persisted even if user never clicked SAVE.
+                    await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
+                    await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "ca_submitted_to_auditor");
+                    router.push(`/dashboard/${orgId}/audit/create/5${stepQuery}`);
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setSubmittingToAuditor(false);
+                  }
+                }}
               >
                 <Send className="h-4 w-4" />
                 {submittingToAuditor ? "Submitting…" : "SUBMIT TO AUDITOR"}

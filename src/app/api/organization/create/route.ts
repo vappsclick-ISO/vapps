@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
 import { createTenantDatabase, runTenantMigrations } from "@/lib/db-creator";
 import { storeTenantData } from "@/lib/store-tenant-data";
+import { generateUniqueOrgSlug } from "@/lib/org-utils";
 import { OnboardingData } from "@/store/onboardingStore";
 import { z } from "zod";
 
@@ -231,12 +232,15 @@ export async function POST(req: NextRequest) {
       // Use transaction for all master DB operations
       // Increased timeout to 30 seconds to handle database creation which can take time
       // especially when database is reset or under load
+      const slug = await generateUniqueOrgSlug(data.step1.companyName!.trim());
+
       const result = await prisma.$transaction(
         async (tx) => {
-          // Create organization first
+          // Create organization first (with slug for URL-friendly routes)
           const org = await tx.organization.create({
             data: {
               name: data.step1.companyName!.trim(),
+              slug,
               ownerId: user.id,
             },
           });
@@ -329,6 +333,7 @@ export async function POST(req: NextRequest) {
         message: "Organization created successfully",
         organization: {
           id: organization.id,
+          slug: organization.slug ?? slug,
           name: organization.name,
           createdAt: organization.createdAt,
         },

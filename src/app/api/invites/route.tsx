@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/get-server-session";
+import { getOrgBySlugOrId } from "@/lib/org-utils";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
 import { normalizeRole, isRoleHigher, type Role } from "@/lib/roles";
@@ -54,7 +55,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Note: Role normalization and validation happens after permission check below
+    const orgLookup = await getOrgBySlugOrId(orgId);
+    if (!orgLookup) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    const resolvedOrgId = orgLookup.id;
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -65,13 +70,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate org exists and get database connection + permissions
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       include: { database: true },
     });
     const orgWithPermissions = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { id: true, ownerId: true, database: true, permissions: true },
     });
 
@@ -86,22 +90,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Org owner can do anything – skip permission check; otherwise require manage_teams
     const isOwner = orgWithPermissions.ownerId === user.id;
     const membership = await prisma.userOrganization.findUnique({
       where: {
-        userId_organizationId: { userId: user.id, organizationId: orgId },
+        userId_organizationId: { userId: user.id, organizationId: resolvedOrgId },
       },
       select: { role: true },
     });
-    if (!membership) {
+    if (!membership && !isOwner) {
       return NextResponse.json(
         { error: "You are not a member of this organization" },
         { status: 403 }
       );
     }
-    // Normalize role before permission check to ensure consistent comparison
-    const currentUserRole = normalizeRole(membership.role) as Role;
+    const currentUserRole = normalizeRole((isOwner ? "owner" : membership!.role)) as Role;
     if (!isOwner) {
       const stored = (orgWithPermissions.permissions ?? null) as StoredPermissions | null;
       if (!hasPermission(stored, currentUserRole, "manage_teams")) {
@@ -138,10 +140,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check for existing pending invite for same org + email
     const existingInvite = await prisma.invitation.findFirst({
       where: {
-        organizationId: orgId,
+        organizationId: resolvedOrgId,
         email,
         status: "pending",
       },
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
     const masterInvite = await prisma.invitation.create({
       data: {
         token,
-        organizationId: orgId,
+        organizationId: resolvedOrgId,
         email,
         name: fullName || null,
         role: normalizedRole,
@@ -234,7 +235,7 @@ export async function POST(req: NextRequest) {
 
     logger.info("Invitation created", {
       inviteId: masterInvite.id,
-      orgId,
+      orgId: resolvedOrgId,
       email,
       role: normalizedRole,
       invitedBy: user.id,

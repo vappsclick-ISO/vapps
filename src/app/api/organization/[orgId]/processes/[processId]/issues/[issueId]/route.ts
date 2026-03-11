@@ -22,9 +22,9 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
-    const accessClient = await getTenantClient(orgId);
+    const accessClient = await getTenantClient(resolvedOrgId);
     try {
       const processResult = await accessClient.query(
         `SELECT id, "siteId" FROM processes WHERE id = $1`,
@@ -36,12 +36,12 @@ export async function GET(
       }
       const processSiteId = processResult.rows[0].siteId;
       const org = await prisma.organization.findUnique({
-        where: { id: orgId },
+        where: { id: resolvedOrgId },
         select: { ownerId: true },
       });
       const userOrg = await prisma.userOrganization.findUnique({
         where: {
-          userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+          userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
         },
         select: { role: true, leadershipTier: true },
       });
@@ -90,8 +90,7 @@ export async function GET(
       throw e;
     }
 
-    // Check cache first (60s TTL)
-    const cacheKey = cacheKeys.orgIssue(orgId, processId, issueId);
+    const cacheKey = cacheKeys.orgIssue(resolvedOrgId, processId, issueId);
     const cachedIssue = cache.get<any>(cacheKey);
     if (cachedIssue) {
       return NextResponse.json(
@@ -104,7 +103,7 @@ export async function GET(
     let issues: any[];
     try {
       issues = await queryTenant(
-        orgId,
+        resolvedOrgId,
         `SELECT 
           i.id,
           i.title,
@@ -129,7 +128,7 @@ export async function GET(
     } catch (queryErr: any) {
       if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline")) || (queryErr?.message && String(queryErr.message).includes("issuer"))) {
         issues = await queryTenant(
-          orgId,
+          resolvedOrgId,
           `SELECT 
             i.id,
             i.title,
@@ -205,16 +204,15 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
-    // Invalidate cache for this issue when updating
-    const cacheKey = cacheKeys.orgIssue(orgId, processId, issueId);
+    const resolvedOrgId = ctx.tenant.orgId;
+
+    const cacheKey = cacheKeys.orgIssue(resolvedOrgId, processId, issueId);
     cache.delete(cacheKey);
-    
+
     const body = await req.json();
     const { title, description, priority, status, points, assignee, tags, sprintId, order, deadline } = body;
 
-    // Use tenant pool instead of new Client() for better performance
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 
@@ -255,12 +253,12 @@ export async function PUT(
       }
       const processSiteId = processRow.rows[0].siteId;
       const org = await prisma.organization.findUnique({
-        where: { id: orgId },
+        where: { id: resolvedOrgId },
         select: { ownerId: true },
       });
       const userOrg = await prisma.userOrganization.findUnique({
         where: {
-          userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+          userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
         },
         select: { role: true, leadershipTier: true },
       });
@@ -475,7 +473,7 @@ export async function PUT(
       
       // Invalidate cache for this issue and related caches
       cache.delete(cacheKey);
-      cache.clearPattern(`org:${orgId}:processes:*`); // Invalidate process issues list cache
+      cache.clearPattern(`org:${resolvedOrgId}:processes:*`);
       
       client.release();
 
@@ -501,7 +499,7 @@ export async function PUT(
           ? "issue.assigned"
           : "issue.updated";
 
-        logActivity(orgId, processId, ctx.user.id, {
+        logActivity(resolvedOrgId, processId, ctx.user.id, {
           action,
           entityType: "issue",
           entityId: updatedIssue.id,
@@ -549,9 +547,9 @@ export async function DELETE(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 
@@ -576,7 +574,7 @@ export async function DELETE(
       );
       
       // Invalidate related caches
-      cache.clearPattern(`org:${orgId}:processes:*`); // Invalidate process issues list cache
+      cache.clearPattern(`org:${resolvedOrgId}:processes:*`);
 
       client.release();
 

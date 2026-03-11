@@ -26,32 +26,29 @@ export async function GET(
     const plans: any[] = [];
 
     await withTenantConnection(connectionString, async (client) => {
-      const tableCheck = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plans'`
-      );
+      const [tableCheck, hasChecklistIdCol, hasFindingsTable, hasKpiTable] = await Promise.all([
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plans'`),
+        client.query(`SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`),
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`),
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_program_kpis'`),
+      ]);
+
       if (tableCheck.rows.length === 0) {
         return;
       }
 
-      const hasChecklistIdCol = await client.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
-      );
       const checklistCol = hasChecklistIdCol.rows.length > 0 ? ", ap.checklist_id" : "";
+      const hasFindings = hasFindingsTable.rows.length > 0;
+      const hasKpi = hasKpiTable.rows.length > 0;
 
-      const hasFindingsTable = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`
-      );
-      const hasKpiTable = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_program_kpis'`
-      );
-      const findingsCols =
-        hasFindingsTable.rows.length > 0
-          ? ", (SELECT f.clause FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_clause, (SELECT f.subclauses FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_subclauses"
-          : "";
-      const kpiCol =
-        hasKpiTable.rows.length > 0
-          ? ", (SELECT k.score FROM audit_program_kpis k WHERE k.audit_program_id = ap.audit_program_id ORDER BY k.kpia_number LIMIT 1) as kpi_score"
-          : "";
+      const findingsJoin = hasFindings
+        ? " LEFT JOIN LATERAL (SELECT clause AS first_clause, subclauses AS first_subclauses FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) f ON true"
+        : "";
+      const findingsSelect = hasFindings ? ", f.first_clause, f.first_subclauses" : "";
+      const kpiJoin = hasKpi
+        ? " LEFT JOIN LATERAL (SELECT k.score AS kpi_score FROM audit_program_kpis k WHERE k.audit_program_id = ap.audit_program_id ORDER BY k.kpia_number LIMIT 1) k ON true"
+        : "";
+      const kpiSelect = hasKpi ? ", k.kpi_score" : "";
 
       const result = await client.query(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
@@ -59,9 +56,10 @@ export async function GET(
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
                 (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
-                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsCols}${kpiCol}
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsSelect}${kpiSelect}
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
+         ${findingsJoin}${kpiJoin}
          WHERE ap.lead_auditor_user_id = $1
             OR EXISTS (SELECT 1 FROM audit_plan_assignments a WHERE a.audit_plan_id = ap.id AND a.user_id = $1)
             OR ap.auditee_user_id = $1
@@ -91,7 +89,7 @@ export async function GET(
 
         let nextStepForUser: number | null = null;
         if (isAssignedAuditor && status === "plan_submitted_to_auditee") nextStepForUser = 3;
-        else if (isAuditee && status === "findings_submitted_to_auditee") nextStepForUser = 4;
+        else if (isAuditee && (status === "findings_submitted_to_auditee" || status === "verification_ineffective")) nextStepForUser = 4;
         else if (isAssignedAuditor && status === "ca_submitted_to_auditor") nextStepForUser = 5;
         else if (isLeadAuditor && (status === "pending_closure" || status === "closed")) nextStepForUser = 6;
 
@@ -179,6 +177,7 @@ export async function POST(
     }
 
     let planId: string | null = null;
+    let createdAuditNumber: string | null = null;
 
     await withTenantConnection(connectionString, async (client) => {
       const programCheck = await client.query(
@@ -207,6 +206,15 @@ export async function POST(
         ? (typeof datePrepared === "string" ? datePrepared : (datePrepared as Date)?.toISOString?.()?.slice(0, 10))
         : new Date().toISOString().slice(0, 10);
 
+      // System-generated audit number (serial) when not provided
+      let finalAuditNumber = auditNumber != null && String(auditNumber).trim() !== "" ? String(auditNumber).trim() : null;
+      if (finalAuditNumber == null) {
+        const nextSerialRes = await client.query<{ next: string }>(
+          `SELECT (COUNT(*)::integer + 1)::text AS next FROM audit_plans`
+        );
+        finalAuditNumber = nextSerialRes.rows[0]?.next ?? "1";
+      }
+
       const hasChecklistId = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
       );
@@ -217,13 +225,13 @@ export async function POST(
             title, audit_number, criteria, checklist_id, planned_date, date_prepared,
             plan_submitted_at
           ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, $9, now())
-          RETURNING id`,
+          RETURNING id, audit_number`,
           [
             auditProgramId,
             leadAuditorUserId,
             auditeeUserId,
             title,
-            auditNumber,
+            finalAuditNumber,
             criteria,
             checklistId,
             plannedDateStr,
@@ -231,6 +239,7 @@ export async function POST(
           ]
         );
         planId = insertPlan.rows[0]?.id;
+        createdAuditNumber = (insertPlan.rows[0] as { audit_number?: string })?.audit_number ?? finalAuditNumber;
       } else {
         const insertPlan = await client.query(
           `INSERT INTO audit_plans (
@@ -238,19 +247,20 @@ export async function POST(
             title, audit_number, criteria, planned_date, date_prepared,
             plan_submitted_at
           ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, now())
-          RETURNING id`,
+          RETURNING id, audit_number`,
           [
             auditProgramId,
             leadAuditorUserId,
             auditeeUserId,
             title,
-            auditNumber,
+            finalAuditNumber,
             criteria,
             plannedDateStr,
             datePreparedStr,
           ]
         );
         planId = insertPlan.rows[0]?.id;
+        createdAuditNumber = (insertPlan.rows[0] as { audit_number?: string })?.audit_number ?? finalAuditNumber;
       }
       if (!planId) throw new Error("Failed to create audit plan");
 
@@ -264,7 +274,7 @@ export async function POST(
       }
     });
 
-    return NextResponse.json({ planId, success: true });
+    return NextResponse.json({ planId, auditNumber: createdAuditNumber, success: true });
   } catch (error: any) {
     console.error("Error creating audit plan:", error);
     return NextResponse.json(

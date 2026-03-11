@@ -18,34 +18,36 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
     if (!org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
+    const isOwner = org.ownerId === ctx.user.id;
     const membership = await prisma.userOrganization.findUnique({
       where: {
-        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
       },
       select: { role: true, leadershipTier: true, jobTitle: true },
     });
 
-    if (!membership) {
+    if (!membership && !isOwner) {
       return NextResponse.json(
         { error: "You are not a member of this organization" },
         { status: 404 }
       );
     }
 
-    const isOwner = org.ownerId === ctx.user.id;
-    const leadershipTier = membership.leadershipTier || roleToLeadershipTier(membership.role);
-    const systemRole = roleToSystemRoleDisplay(membership.role);
+    const role = membership?.role ?? "owner";
+    const leadershipTier = membership?.leadershipTier || roleToLeadershipTier(role);
+    const systemRole = roleToSystemRoleDisplay(role);
     const jobTitle =
-      (membership.jobTitle && membership.jobTitle.trim()) || (isOwner ? "Owner" : null);
+      (membership?.jobTitle && membership.jobTitle.trim()) || (isOwner ? "Owner" : null);
 
     return NextResponse.json({
       leadershipTier,

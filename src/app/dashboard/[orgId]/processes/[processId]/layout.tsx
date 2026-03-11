@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -476,7 +477,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
 
 
-  const base = `/dashboard/${orgId}/processes/${processId}`;
+  const base = getDashboardPath(orgId, `processes/${processId}`);
 
   // Fetch process data to get siteId
   useEffect(() => {
@@ -550,7 +551,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     <div className="w-full">
       {/* Header */}
       <Link
-        href={`/dashboard/${orgId}/processes`}
+        href={getDashboardPath(orgId, "processes")}
         className="flex items-center gap-2 mb-5 cursor-pointer w-fit hover:opacity-80 transition-opacity"
       >
         <ArrowLeft /> Processes

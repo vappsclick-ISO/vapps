@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Upload, X, Paperclip } from "lucide-react";
 
+const generateId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
 interface UploadedFile {
   id: string;
   file: File;
@@ -37,7 +44,7 @@ export default function RisksDialog() {
 
   const [actionPlans, setActionPlans] = useState<ActionPlanRow[]>([
     {
-      id: crypto.randomUUID(),
+      id: generateId(),
       action: "",
       responsible: "",
       plannedDate: "",
@@ -52,7 +59,7 @@ export default function RisksDialog() {
   ) => {
     if (!files) return;
     const newFiles: UploadedFile[] = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
+      id: generateId(),
       file,
     }));
     setter((prev) => [...prev, ...newFiles]);
@@ -68,7 +75,7 @@ export default function RisksDialog() {
               files: [
                 ...row.files,
                 ...Array.from(files).map((file) => ({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   file,
                 })),
               ],
@@ -111,7 +118,7 @@ export default function RisksDialog() {
     setActionPlans((prev) => [
       ...prev,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         action: "",
         responsible: "",
         plannedDate: "",

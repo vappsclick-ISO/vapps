@@ -1,53 +1,97 @@
 /**
  * Request-Level Context Helper
  *
- * Provides a unified way to get user + tenant context in a single call,
- * eliminating redundant master database queries within the same request.
+ * Provides a unified way to get user + tenant context. When the request is from
+ * a tenant subdomain (e.g. stellixsoft.lvh.me), the organization is derived from
+ * the host so the backend does not trust client-supplied org in the path.
+ * User must belong to the org (getTenantContext returns null otherwise) → 403 if not.
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { getTenantContext, TenantInfo } from "@/lib/tenant-context";
+import { getOrgSlugFromHost } from "@/lib/get-org-from-host";
 
 export interface RequestContext {
   user: { id: string; email: string | null; name: string | null };
   tenant: TenantInfo;
 }
 
-// Request-scoped cache (cleared after request completes)
-// Using WeakMap so it's automatically garbage collected
 const requestCache = new WeakMap<NextRequest, Map<string, RequestContext>>();
 
 /**
- * Get request context (user + tenant) with request-level caching
+ * Resolve which org slug/id to use for this request.
+ * On tenant subdomain: use host-derived slug (source of truth; path param must match or is ignored).
+ * Otherwise: use pathOrgSlugOrId from URL.
+ */
+function resolveOrgSlugOrId(req: NextRequest, pathOrgSlugOrId: string): string {
+  const hostSlug = getOrgSlugFromHost(req);
+  if (hostSlug) {
+    return hostSlug;
+  }
+  return pathOrgSlugOrId;
+}
+
+/**
+ * Get request context (user + tenant) with request-level caching.
+ * When the request is from a tenant subdomain (e.g. stellixsoft.lvh.me), the
+ * organization is taken from the host; otherwise from the path param.
+ * Returns null if unauthorized or user does not belong to the org (security).
+ *
  * @param req - Next.js request object
- * @param orgId - Organization ID
- * @returns Request context or null if unauthorized
+ * @param pathOrgSlugOrId - Organization slug or id from URL path (e.g. [orgId] param)
+ * @returns Request context or null if unauthorized / not a member
  */
 export async function getRequestContext(
   req: NextRequest,
-  orgId: string
+  pathOrgSlugOrId: string
 ): Promise<RequestContext | null> {
-  // Check request cache first (same request = same context)
+  const out = await getRequestContextWithStatus(req, pathOrgSlugOrId);
+  return out.context;
+}
+
+export type RequestContextResult =
+  | { context: RequestContext; errorResponse: null }
+  | { context: null; errorResponse: Response };
+
+/**
+ * Get request context and an error response for API routes.
+ * Use in route handlers to return 401 Unauthorized (no session) or 403 Forbidden (not a member of the org).
+ *
+ * @example
+ * const { context, errorResponse } = await getRequestContextAndError(req, orgId);
+ * if (errorResponse) return errorResponse;
+ * // use context
+ */
+export async function getRequestContextAndError(
+  req: NextRequest,
+  pathOrgSlugOrId: string
+): Promise<RequestContextResult> {
+  const { context, status } = await getRequestContextWithStatus(req, pathOrgSlugOrId);
+  if (context) return { context, errorResponse: null };
+  if (status === "forbidden") {
+    return { context: null, errorResponse: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { context: null, errorResponse: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+}
+
+async function getRequestContextWithStatus(
+  req: NextRequest,
+  pathOrgSlugOrId: string
+): Promise<{ context: RequestContext | null; status: "ok" | "unauthorized" | "forbidden" }> {
+  const orgSlugOrId = resolveOrgSlugOrId(req, pathOrgSlugOrId);
+
   const reqCache = requestCache.get(req);
   if (reqCache) {
-    const cached = reqCache.get(orgId);
-    if (cached) {
-      return cached;
-    }
+    const cached = reqCache.get(orgSlugOrId);
+    if (cached) return { context: cached, status: "ok" };
   }
 
-  // Get user (JWT-based, no DB query)
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return null;
-  }
+  const user = await getCurrentUser(req);
+  if (!user?.id) return { context: null, status: "unauthorized" };
 
-  // Get tenant context (cached for 5 minutes)
-  const tenant = await getTenantContext(orgId, user.id);
-  if (!tenant) {
-    return null;
-  }
+  const tenant = await getTenantContext(orgSlugOrId, user.id);
+  if (!tenant) return { context: null, status: "forbidden" };
 
   const context: RequestContext = {
     user: {
@@ -58,12 +102,11 @@ export async function getRequestContext(
     tenant,
   };
 
-  // Cache in request scope
   if (!reqCache) {
-    requestCache.set(req, new Map([[orgId, context]]));
+    requestCache.set(req, new Map([[orgSlugOrId, context]]));
   } else {
-    reqCache.set(orgId, context);
+    reqCache.set(orgSlugOrId, context);
   }
 
-  return context;
+  return { context, status: "ok" };
 }

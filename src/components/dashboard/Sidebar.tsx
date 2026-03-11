@@ -35,6 +35,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { apiClient } from "@/lib/api-client";
+import { getDashboardPath } from "@/lib/subdomain";
 
 interface Site {
   id: string;
@@ -44,7 +45,7 @@ interface Site {
   processes: Array<{ id: string; name: string; createdAt: string }>;
 }
 
-export default function Sidebar({ orgId }: { orgId: string }) {
+export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [processOpen, setProcessOpen] = useState(true);
@@ -64,7 +65,8 @@ export default function Sidebar({ orgId }: { orgId: string }) {
   const organization = sitesData?.organization ?? null;
   const userRole = sitesData?.userRole ?? "member";
 
-  const link = (path: string) => `/dashboard/${orgId}/${path}`;
+  // On subdomain use short paths (/processes); otherwise /dashboard/slug/processes
+  const link = (path: string) => getDashboardPath(slug, path);
 
   // Sync selectedSite from query data (preserve localStorage or use first site)
   useEffect(() => {
@@ -324,7 +326,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
       </div>
 
       <nav className="flex-1 p-5 space-y-1">
-        <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b pb-5 mb-2 ${pathname.includes(`/${orgId}`) ? "text-[text-[#364153]" : "text-black"}`} >
+        <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b pb-5 mb-2 ${pathname === "/" || pathname.includes(`/${slug}`) ? "text-[text-[#364153]" : "text-black"}`} >
           <House size={18} />
           Dashboard
         </Link>

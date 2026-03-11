@@ -23,6 +23,7 @@ export async function POST(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     if (!orgId || !processId || !issueId) {
       return NextResponse.json(
@@ -54,8 +55,7 @@ export async function POST(
       );
     }
 
-    // Get tenant database client
-    client = await getTenantClient(orgId);
+    client = await getTenantClient(resolvedOrgId);
 
     // Verify issue exists and is in 'in-review' status
     // Also check issuer to ensure only issuer (or Top leadership) can verify
@@ -278,6 +278,7 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     if (!orgId || !issueId) {
       return NextResponse.json(
@@ -286,8 +287,7 @@ export async function GET(
       );
     }
 
-    // Get tenant database client
-    client = await getTenantClient(orgId);
+    client = await getTenantClient(resolvedOrgId);
 
     // Fetch verification data for this issue
     const result = await client.query(

@@ -81,6 +81,8 @@ interface EditUserDialogProps {
   currentProcessId?: string;
   /** Current additional role names (e.g. ["Auditor"]) from the members API */
   currentAdditionalRoles?: string[];
+  /** When true, user is the org owner editing their own profile; site/process/job title are optional and org role is not changed */
+  isOwnerEditingSelf?: boolean;
   onUserUpdated?: () => void;
 }
 
@@ -102,6 +104,7 @@ export default function EditUserDialog({
   currentSiteId,
   currentProcessId,
   currentAdditionalRoles,
+  isOwnerEditingSelf = false,
   onUserUpdated,
 }: EditUserDialogProps) {
   const [name, setName] = useState(userName || "");
@@ -182,16 +185,14 @@ export default function EditUserDialog({
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!jobTitle) {
+    if (!isOwnerEditingSelf && !jobTitle) {
       newErrors.jobTitle = "Job title is required";
     }
 
-    // Every user must have one site and one process (Owner is not edited in this dialog)
-    if (!site) {
-      newErrors.site = "Select one site";
-    }
-    if (!process) {
-      newErrors.process = "Select one process";
+    // Every user (except owner editing self) must have one site and one process
+    if (!isOwnerEditingSelf) {
+      if (!site) newErrors.site = "Select one site";
+      if (!process) newErrors.process = "Select one process";
     }
 
     setErrors(newErrors);
@@ -199,19 +200,19 @@ export default function EditUserDialog({
   };
 
   const handleSubmit = async () => {
-    if (!validateForm() || !roleLevel || !systemRole) {
-      return;
-    }
+    if (!validateForm()) return;
+    if (!isOwnerEditingSelf && (!roleLevel || !systemRole)) return;
 
     setIsLoading(true);
     setErrors({});
 
     try {
       const jobTitleToSend = jobTitle && jobTitle.trim() !== "" ? String(jobTitle).trim() : null;
+      const roleToSend = isOwnerEditingSelf ? "owner" : systemRole!.toLowerCase();
 
       await apiClient.put(`/organization/${orgId}/members/${userId}`, {
         name: name.trim() || userName.trim(),
-        role: systemRole.toLowerCase(),
+        role: roleToSend,
         jobTitle: jobTitleToSend,
         siteId: site || null,
         processId: process || null,
@@ -278,47 +279,53 @@ export default function EditUserDialog({
             <Input value={userEmail} disabled className="bg-gray-50 cursor-not-allowed" />
           </div>
 
-          {/* Job Title */}
+          {/* Job Title (read-only for org owner editing self) */}
           <div className="space-y-2">
             <Label htmlFor="jobTitle">
               <div className="flex items-center gap-2">
                 <span>Job Title</span>
-                <span className="text-red-500">*</span>
+                {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-4 w-4 text-gray-400 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Defines the user's business designation and determines their system role.</p>
+                    <p>{isOwnerEditingSelf ? "Organization owner. You can set your site, process, and additional roles (e.g. Auditor) below." : "Defines the user's business designation and determines their system role."}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
             </Label>
-            <Select value={jobTitle} onValueChange={handleJobTitleChange}>
-              <SelectTrigger
-                id="jobTitle"
-                className={errors.jobTitle ? "border-red-500" : ""}
-              >
-                <SelectValue placeholder="Select job title" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CEO">CEO</SelectItem>
-                <SelectItem value="CTO">CTO</SelectItem>
-                <SelectItem value="CFO">CFO</SelectItem>
-                <SelectItem value="VP">VP</SelectItem>
-                <SelectItem value="Director">Director</SelectItem>
-                <SelectItem value="Plant Manager">Plant Manager</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Supervisor">Supervisor</SelectItem>
-                <SelectItem value="Team Lead">Team Lead</SelectItem>
-                <SelectItem value="Coordinator">Coordinator</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.jobTitle && (
-              <div className="flex items-center gap-1 text-sm text-red-500">
-                <AlertCircle className="h-4 w-4" />
-                <span>{errors.jobTitle}</span>
-              </div>
+            {isOwnerEditingSelf ? (
+              <Input id="jobTitle" value="Owner" disabled className="bg-gray-50 cursor-not-allowed" />
+            ) : (
+              <>
+                <Select value={jobTitle} onValueChange={handleJobTitleChange}>
+                  <SelectTrigger
+                    id="jobTitle"
+                    className={errors.jobTitle ? "border-red-500" : ""}
+                  >
+                    <SelectValue placeholder="Select job title" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CEO">CEO</SelectItem>
+                    <SelectItem value="CTO">CTO</SelectItem>
+                    <SelectItem value="CFO">CFO</SelectItem>
+                    <SelectItem value="VP">VP</SelectItem>
+                    <SelectItem value="Director">Director</SelectItem>
+                    <SelectItem value="Plant Manager">Plant Manager</SelectItem>
+                    <SelectItem value="Manager">Manager</SelectItem>
+                    <SelectItem value="Supervisor">Supervisor</SelectItem>
+                    <SelectItem value="Team Lead">Team Lead</SelectItem>
+                    <SelectItem value="Coordinator">Coordinator</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.jobTitle && (
+                  <div className="flex items-center gap-1 text-sm text-red-500">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{errors.jobTitle}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -370,12 +377,12 @@ export default function EditUserDialog({
             </div>
           )}
 
-          {/* Site and Process – required for every user (Owner is not edited here) */}
-          {roleLevel != null && (
+          {/* Site and Process – required for non-owner; optional for owner editing self */}
+          {(roleLevel != null || isOwnerEditingSelf) && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="edit-site">
-                  Site <span className="text-red-500">*</span>
+                  Site {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 </Label>
                 <p className="text-xs text-gray-500 mb-1">
                   Select the site where this user operates.
@@ -383,7 +390,7 @@ export default function EditUserDialog({
                 <Select value={site} onValueChange={handleSiteChange}>
                   <SelectTrigger
                     id="edit-site"
-                    className={errors.site ? "border-red-500" : ""}
+                    className={`w-full ${errors.site ? "border-red-500" : ""}`}
                   >
                     <SelectValue placeholder="Select one site" />
                   </SelectTrigger>
@@ -406,7 +413,7 @@ export default function EditUserDialog({
               {site && (
                 <div className="space-y-2">
                   <Label htmlFor="edit-process">
-                    Process <span className="text-red-500">*</span>
+                    Process {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                   </Label>
                   <p className="text-xs text-gray-500 mb-1">
                     Select one process within this site.
@@ -420,7 +427,7 @@ export default function EditUserDialog({
                   >
                     <SelectTrigger
                       id="edit-process"
-                      className={errors.process ? "border-red-500" : ""}
+                      className={`w-full ${errors.process ? "border-red-500" : ""}`}
                     >
                       <SelectValue placeholder={processes.length === 0 ? "No processes" : "Select one process"} />
                     </SelectTrigger>

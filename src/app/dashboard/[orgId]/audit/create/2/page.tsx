@@ -225,6 +225,12 @@ export default function CreateAuditStep2Page() {
     staleTime: 0, // always refetch when opening edit so Step 2 fields are fresh
   });
 
+  const nextAuditNumberQuery = useQuery({
+    queryKey: ["nextAuditNumber", orgId],
+    queryFn: () => apiClient.getNextAuditNumber(orgId).then((r) => r.nextAuditNumber),
+    enabled: !!orgId && !auditPlanIdFromUrl,
+  });
+
   // Force refetch plan when opening edit so step2Data (amrcRows, Manual Entry) is never stale
   useEffect(() => {
     if (orgId && auditPlanIdFromUrl) {
@@ -756,7 +762,6 @@ export default function CreateAuditStep2Page() {
       if (auditPlanIdFromUrl) {
         await apiClient.updateAuditPlan(orgId, auditPlanIdFromUrl, {
           title: auditPlanTitle || undefined,
-          auditNumber: auditNumber || undefined,
           criteria: selectedCriteria || undefined,
           plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
           datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
@@ -768,7 +773,6 @@ export default function CreateAuditStep2Page() {
         const createRes = await apiClient.createAuditPlan(orgId, {
           auditProgramId: effectiveProgramId,
           title: auditPlanTitle || undefined,
-          auditNumber: auditNumber || undefined,
           criteria: selectedCriteria || undefined,
           plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
           datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
@@ -793,7 +797,6 @@ export default function CreateAuditStep2Page() {
     auditPlanIdFromUrl,
     auditorResources,
     auditPlanTitle,
-    auditNumber,
     selectedCriteria,
     selectedChecklistId,
     plannedDate,
@@ -1156,12 +1159,10 @@ export default function CreateAuditStep2Page() {
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Audit #*
                 </Label>
-                <Input
-                  placeholder="e.g. 001"
-                  className="h-10 rounded-lg border-gray-300"
-                  value={auditNumber}
-                  onChange={(e) => setAuditNumber(e.target.value)}
-                />
+                <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+                  {auditNumber || (nextAuditNumberQuery.data ?? "—")}
+                </div>
+                <p className="text-xs text-gray-500">System-generated serial number (assigned when you submit).</p>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">

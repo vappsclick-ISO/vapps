@@ -8,9 +8,11 @@ import { Loader2, Building2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import Image from "next/image";
+import { getOrgDashboardUrl } from "@/lib/subdomain";
 
 interface Organization {
   id: string;
+  slug?: string;
   name: string;
   role: string;
   createdAt: string;
@@ -56,12 +58,18 @@ export default function ResolvePage() {
   useEffect(() => {
     if (organizations.length === 1 && !isLoading && !isRedirecting) {
       setIsRedirecting(true);
-      router.push(`/dashboard/${organizations[0].id}`);
+      const slug = organizations[0].slug ?? organizations[0].id;
+      const url = getOrgDashboardUrl(slug);
+      if (url.startsWith("http")) window.location.href = url;
+      else router.push(url);
     }
   }, [organizations, isLoading, isRedirecting, router]);
 
-  const handleSelectOrg = (orgId: string) => {
-    router.push(`/dashboard/${orgId}`);
+  const handleSelectOrg = (org: Organization) => {
+    const slug = org.slug ?? org.id;
+    const url = getOrgDashboardUrl(slug);
+    if (url.startsWith("http")) window.location.href = url;
+    else router.push(url);
   };
 
   // Show loading state
@@ -163,7 +171,7 @@ export default function ResolvePage() {
               key={org.id}
               variant="outline"
               className="w-full justify-start h-auto p-4"
-              onClick={() => handleSelectOrg(org.id)}
+              onClick={() => handleSelectOrg(org)}
             >
               <div className="flex items-center gap-3 w-full">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">

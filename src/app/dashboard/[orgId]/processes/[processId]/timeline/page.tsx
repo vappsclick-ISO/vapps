@@ -24,6 +24,7 @@ import { apiClient } from '@/lib/api-client';
 import { EyeIcon, LinkIcon, TrashIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { getDashboardPath } from '@/lib/subdomain';
 import groupBy from 'lodash.groupby';
 import { addDays, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
@@ -127,7 +128,8 @@ export default function TimelinePage() {
 
   const handleCopyLink = useCallback(
     (issueId: string) => {
-      const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/${orgId}/processes/${processId}?issueId=${issueId}`;
+      const path = getDashboardPath(orgId, `processes/${processId}`);
+      const url = `${typeof window !== 'undefined' ? window.location.origin : ''}${path}?issueId=${issueId}`;
       navigator.clipboard.writeText(url).then(
         () => toast.success('Link copied'),
         () => toast.error('Failed to copy')

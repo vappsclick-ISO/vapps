@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { cache } from "@/lib/cache";
+import { getOrgBySlugOrId } from "@/lib/org-utils";
 
 export interface TenantInfo {
   orgId: string;
@@ -22,15 +23,20 @@ export interface TenantInfo {
 }
 
 /**
- * Get tenant context (organization + database + user access) with caching
- * @param orgId - Organization ID
+ * Get tenant context (organization + database + user access) with caching.
+ * Accepts org slug or UUID (e.g. "stellixsoft" or org id from subdomain API routes).
+ * @param orgSlugOrId - Organization slug or UUID
  * @param userId - User ID
  * @returns Tenant info or null if not found/unauthorized
  */
 export async function getTenantContext(
-  orgId: string,
+  orgSlugOrId: string,
   userId: string
 ): Promise<TenantInfo | null> {
+  const lookup = await getOrgBySlugOrId(orgSlugOrId);
+  if (!lookup) return null;
+  const orgId = lookup.id;
+
   const cacheKey = `tenant:${orgId}:${userId}`;
   
   // Check cache first (5 minute TTL for org data - changes infrequently)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantClient } from "@/lib/db/tenant";
+import { getRequestContext } from "@/lib/request-context";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 
 export async function POST(
   req: NextRequest,
@@ -7,35 +8,30 @@ export async function POST(
 ) {
   let client;
   try {
-    // Ensure params are resolved
     const resolvedParams = await params;
-    console.log("[Review POST] Resolved params:", JSON.stringify(resolvedParams));
-    
     if (!resolvedParams) {
       return NextResponse.json(
         { error: "Failed to resolve route parameters" },
         { status: 400 }
       );
     }
-    
     const { orgId, processId, issueId } = resolvedParams;
-    
     if (!orgId || !processId || !issueId) {
-      console.error("[Review POST] Missing params:", { orgId, processId, issueId, resolvedParams });
       return NextResponse.json(
-        { error: `Missing required parameters. Received: ${JSON.stringify(resolvedParams)}` },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
-    
-    console.log("[Review POST] Using params:", { orgId, processId, issueId });
-    
-    const body = await req.json();
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const resolvedOrgId = ctx.tenant.orgId;
 
+    const body = await req.json();
     const { containmentText, rootCauseText, containmentFiles, rootCauseFiles, actionPlans } = body;
 
-    // Get tenant database client
-    const client = await getTenantClient(orgId);
+    client = await getTenantClient(resolvedOrgId);
 
     // Insert or update review data (upsert)
     await client.query(
@@ -65,7 +61,7 @@ export async function POST(
       ]
     );
 
-    await client.end();
+    client.release();
 
     return NextResponse.json({
       message: "Review data saved successfully",
@@ -85,31 +81,27 @@ export async function GET(
 ) {
   let client;
   try {
-    // Ensure params are resolved
     const resolvedParams = await params;
-    console.log("[Review GET] Resolved params:", JSON.stringify(resolvedParams));
-    
     if (!resolvedParams) {
       return NextResponse.json(
         { error: "Failed to resolve route parameters" },
         { status: 400 }
       );
     }
-    
     const { orgId, issueId } = resolvedParams;
-    
     if (!orgId || !issueId) {
-      console.error("[Review GET] Missing params:", { orgId, issueId, resolvedParams });
       return NextResponse.json(
-        { error: `Missing required parameters. Received: ${JSON.stringify(resolvedParams)}` },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
-    
-    console.log("[Review GET] Using params:", { orgId, issueId });
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Get tenant database client
-    client = await getTenantClient(orgId);
+    client = await getTenantClient(resolvedOrgId);
 
     // Fetch review data for this issue
     const result = await client.query(
@@ -117,7 +109,7 @@ export async function GET(
       [issueId]
     );
 
-    await client.end();
+    client.release();
 
     if (result.rows.length === 0) {
       return NextResponse.json({ review: null });
@@ -149,7 +141,7 @@ export async function GET(
     console.error("Error fetching review data:", error);
     if (client) {
       try {
-        await client.end();
+        client.release();
       } catch (e) {
         // Ignore cleanup errors
       }

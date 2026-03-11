@@ -23,12 +23,11 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
-      // Verify process exists and get siteId for access check
       const processResult = await client.query(
         `SELECT id, "siteId" FROM processes WHERE id = $1`,
         [processId]
@@ -44,16 +43,15 @@ export async function GET(
 
       const processSiteId = processResult.rows[0].siteId;
 
-      // Access control by leadership tier
       const org = await prisma.organization.findUnique({
-        where: { id: orgId },
+        where: { id: resolvedOrgId },
         select: { ownerId: true },
       });
       const userOrg = await prisma.userOrganization.findUnique({
         where: {
           userId_organizationId: {
             userId: ctx.user.id,
-            organizationId: orgId,
+            organizationId: resolvedOrgId,
           },
         },
         select: { role: true, leadershipTier: true },
@@ -158,9 +156,9 @@ export async function POST(
     if (!ctx || !ctx.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
       // Get user details for caching

@@ -88,6 +88,29 @@ export const authOptions: NextAuthOptions = {
 
   session: { strategy: "jwt" },
 
+  /*
+   * Cookie config for subdomain session sharing.
+   * Set NEXTAUTH_COOKIE_DOMAIN (e.g. .lvh.me in dev, .yourapp.com in prod)
+   * so the session cookie is sent for app.lvh.me, stellix.lvh.me, etc.
+   * In dev use "next-auth.session-token" so the cookie is sent over HTTP (browsers
+   * do not send __Secure-* cookies over non-HTTPS).
+   */
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        domain: process.env.NEXTAUTH_COOKIE_DOMAIN ?? undefined,
+      },
+    },
+  },
+
   pages: {
     signIn: "/auth", // Custom login page
   },

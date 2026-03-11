@@ -50,14 +50,15 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
     const userOrg = await prisma.userOrganization.findUnique({
       where: {
-        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
       },
       select: { role: true, leadershipTier: true },
     });
@@ -68,7 +69,7 @@ export async function GET(
     const isOperationalLeadership = leadershipTier === "Operational";
     const isSupportLeadership = leadershipTier === "Support";
 
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
       let allowedProcessIds: string[] = [];
@@ -150,11 +151,13 @@ export async function GET(
                   ? "Findings submitted"
                   : row.status === "ca_submitted_to_auditor"
                     ? "Corrective action submitted"
-                    : row.status === "pending_closure"
-                      ? "Pending closure"
-                      : row.status === "closed"
-                        ? "Closed"
-                        : row.status || "Updated";
+                    : row.status === "verification_ineffective"
+                      ? "Returned to auditee"
+                      : row.status === "pending_closure"
+                        ? "Pending closure"
+                        : row.status === "closed"
+                          ? "Closed"
+                          : row.status || "Updated";
             auditActivities.push({
               id: `audit-${row.id}`,
               processId: null,
@@ -183,7 +186,7 @@ export async function GET(
       const dismissals = await prisma.userNotificationDismissal.findMany({
         where: {
           userId: ctx.user.id,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
           activityId: { in: activityIds },
         },
         select: { activityId: true },

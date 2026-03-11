@@ -36,9 +36,17 @@ export async function GET(
       const hasStep2Col = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_2_data'`
       );
+      const hasStep5Col = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_5_data'`
+      );
+      const hasStep6Col = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_6_data'`
+      );
       const stepCols = [
         hasStep4Col.rows.length > 0 ? "ap.step_4_data" : null,
         hasStep2Col.rows.length > 0 ? "ap.step_2_data" : null,
+        hasStep5Col.rows.length > 0 ? "ap.step_5_data" : null,
+        hasStep6Col.rows.length > 0 ? "ap.step_6_data" : null,
       ].filter(Boolean).join(", ");
       const stepColsClause = stepCols ? `, ${stepCols}` : "";
 
@@ -52,8 +60,23 @@ export async function GET(
          WHERE ap.id = $1`,
         [planId]
       );
-      const row = planResult.rows[0];
+      let row = planResult.rows[0];
       if (!row) return;
+
+      // Backfill audit_number if null (e.g. plans created before system-generated numbers)
+      let auditNumberValue = (row as { audit_number?: string | null }).audit_number;
+      if (auditNumberValue == null || String(auditNumberValue).trim() === "") {
+        const nextRes = await client.query<{ next: string }>(
+          `SELECT (COALESCE(MAX(CAST(NULLIF(TRIM(audit_number), '') AS INTEGER)), 0) + 1)::text AS next
+           FROM audit_plans WHERE audit_number ~ '^[0-9]+$'`
+        );
+        const nextNum = nextRes.rows[0]?.next ?? "1";
+        await client.query(
+          `UPDATE audit_plans SET audit_number = $1, updated_at = now() WHERE id = $2`,
+          [nextNum, planId]
+        );
+        auditNumberValue = nextNum;
+      }
 
       let step2DataRaw = (row as { step_2_data?: unknown }).step_2_data ?? null;
       if (typeof step2DataRaw === "string") {
@@ -64,6 +87,24 @@ export async function GET(
         }
       }
 
+      let step5DataRaw = (row as { step_5_data?: unknown }).step_5_data ?? null;
+      if (typeof step5DataRaw === "string") {
+        try {
+          step5DataRaw = JSON.parse(step5DataRaw as string) as object;
+        } catch {
+          step5DataRaw = null;
+        }
+      }
+
+      let step6DataRaw = (row as { step_6_data?: unknown }).step_6_data ?? null;
+      if (typeof step6DataRaw === "string") {
+        try {
+          step6DataRaw = JSON.parse(step6DataRaw as string) as object;
+        } catch {
+          step6DataRaw = null;
+        }
+      }
+
       plan = {
         id: row.id,
         auditProgramId: row.audit_program_id,
@@ -71,7 +112,7 @@ export async function GET(
         leadAuditorUserId: row.lead_auditor_user_id,
         auditeeUserId: row.auditee_user_id,
         title: row.title ?? null,
-        auditNumber: row.audit_number ?? null,
+        auditNumber: auditNumberValue ?? row.audit_number ?? null,
         criteria: row.criteria ?? null,
         plannedDate: row.planned_date ?? null,
         datePrepared: row.date_prepared ?? null,
@@ -83,6 +124,8 @@ export async function GET(
         programCriteria: row.program_criteria ?? null,
         step4Data: (row as { step_4_data?: unknown }).step_4_data ?? null,
         step2Data: step2DataRaw,
+        step5Data: step5DataRaw,
+        step6Data: step6DataRaw,
         assignedAuditorIds: [] as string[],
       };
 
@@ -181,6 +224,7 @@ export async function PATCH(
     const status = body.status;
     const step4Data = body.step4Data;
     const step5Data = body.step5Data;
+    const step6Data = body.step6Data;
     const step2Data = body.step2Data;
     const title = body.title ?? body.name ?? undefined;
     const auditNumber = body.auditNumber ?? body.audit_number ?? undefined;
@@ -193,7 +237,7 @@ export async function PATCH(
         ? body.assigned_auditor_ids
         : undefined;
 
-    const hasPlanUpdate = status !== undefined || step4Data !== undefined || step5Data !== undefined || step2Data !== undefined ||
+    const hasPlanUpdate = status !== undefined || step4Data !== undefined || step5Data !== undefined || step6Data !== undefined || step2Data !== undefined ||
       title !== undefined || auditNumber !== undefined || criteria !== undefined ||
       plannedDate !== undefined || datePrepared !== undefined || assignedAuditorIds !== undefined;
 
@@ -208,10 +252,6 @@ export async function PATCH(
       if (tableCheck.rows.length === 0) {
         throw new Error("audit_plans table does not exist");
       }
-
-      const hasStep4Column = await client.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_4_data'`
-      );
 
       if (status !== undefined || title !== undefined || auditNumber !== undefined || criteria !== undefined || plannedDate !== undefined || datePrepared !== undefined) {
         const updates: string[] = ["updated_at = now()"];
@@ -263,7 +303,10 @@ export async function PATCH(
         }
       }
 
-      if (step4Data !== undefined && hasStep4Column.rows.length > 0) {
+      if (step4Data !== undefined) {
+        await client.query(
+          `ALTER TABLE audit_plans ADD COLUMN IF NOT EXISTS step_4_data jsonb`
+        );
         await client.query(
           `UPDATE audit_plans SET step_4_data = $1, updated_at = now() WHERE id = $2`,
           [JSON.stringify(step4Data), planId]
@@ -277,6 +320,16 @@ export async function PATCH(
         await client.query(
           `UPDATE audit_plans SET step_5_data = $1, updated_at = now() WHERE id = $2`,
           [JSON.stringify(step5Data), planId]
+        );
+      }
+
+      if (step6Data !== undefined) {
+        await client.query(
+          `ALTER TABLE audit_plans ADD COLUMN IF NOT EXISTS step_6_data jsonb`
+        );
+        await client.query(
+          `UPDATE audit_plans SET step_6_data = $1, updated_at = now() WHERE id = $2`,
+          [JSON.stringify(step6Data), planId]
         );
       }
 

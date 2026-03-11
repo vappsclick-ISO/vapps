@@ -24,10 +24,10 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Org owner can do anything; otherwise require manage_processes
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -51,8 +51,7 @@ export async function PUT(
       );
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
 
@@ -100,13 +99,12 @@ export async function PUT(
 
       client.release();
 
-      // Clear cache - invalidate all process-related cache entries for this org
-      cache.clearPattern(`processes:${orgId}:*`);
-      cache.delete(cacheKeys.orgProcesses(orgId));
+      cache.clearPattern(`processes:${resolvedOrgId}:*`);
+      cache.delete(cacheKeys.orgProcesses(resolvedOrgId));
       if (siteId) {
-        cache.delete(cacheKeys.orgProcesses(orgId, siteId));
+        cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
       }
-      cache.delete(cacheKeys.orgSites(orgId));
+      cache.delete(cacheKeys.orgSites(resolvedOrgId));
 
       return NextResponse.json(
         {
@@ -147,10 +145,10 @@ export async function DELETE(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Org owner can do anything; otherwise require manage_processes
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -167,8 +165,7 @@ export async function DELETE(
       }
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
       // Verify process exists and get siteId for event
@@ -195,10 +192,10 @@ export async function DELETE(
       // Clear cache - invalidate all process-related cache entries for this org
       // GET endpoint uses: processes:${orgId}:${userId}:${siteId}
       // We need to clear all user-specific entries, so use pattern matching
-      cache.clearPattern(`processes:${orgId}:*`);
-      cache.delete(cacheKeys.orgProcesses(orgId));
-      cache.delete(cacheKeys.orgProcesses(orgId, siteId));
-      cache.delete(cacheKeys.orgSites(orgId)); // Sites cache includes process counts
+      cache.clearPattern(`processes:${resolvedOrgId}:*`);
+      cache.delete(cacheKeys.orgProcesses(resolvedOrgId));
+      cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
+      cache.delete(cacheKeys.orgSites(resolvedOrgId));
 
       return NextResponse.json(
         {

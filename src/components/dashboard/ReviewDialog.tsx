@@ -17,6 +17,13 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
 
+const generateId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
 interface UploadedFile {
   id: string;
   file: File;
@@ -78,7 +85,7 @@ export default function ReviewDialog({
 
   const [actionPlans, setActionPlans] = useState<ActionPlanRow[]>([
     {
-      id: crypto.randomUUID(),
+      id: generateId(),
       action: "",
       responsible: "",
       plannedDate: "",
@@ -113,7 +120,7 @@ export default function ReviewDialog({
     const newFiles: UploadedFile[] = Array.from(files)
       .filter((file) => file.size <= maxSize)
       .map((file) => ({
-        id: crypto.randomUUID(),
+        id: generateId(),
         file,
       }));
     
@@ -153,7 +160,7 @@ export default function ReviewDialog({
                 ...Array.from(files)
                   .filter((file) => file.size <= maxSize)
                   .map((file) => ({
-                    id: crypto.randomUUID(),
+                    id: generateId(),
                     file,
                   })),
               ],
@@ -201,7 +208,7 @@ export default function ReviewDialog({
     setActionPlans((prev) => [
       ...prev,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         action: "",
         responsible: "",
         plannedDate: "",
@@ -258,7 +265,7 @@ export default function ReviewDialog({
           if (response.review.actionPlans && Array.isArray(response.review.actionPlans) && response.review.actionPlans.length > 0) {
             setActionPlans(
               response.review.actionPlans.map((plan: any) => ({
-                id: crypto.randomUUID(), // Generate new ID for form
+                id: generateId(), // Generate new ID for form
                 action: plan.action || "",
                 responsible: plan.responsible || "",
                 plannedDate: plan.plannedDate || "",

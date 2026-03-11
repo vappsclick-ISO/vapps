@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,11 +103,11 @@ export default function PermissionsPage() {
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <Link href={`/dashboard/${orgId}`} className="hover:text-gray-700 transition-colors">
+            <Link href={getDashboardPath(orgId, "")} className="hover:text-gray-700 transition-colors">
               Dashboard
             </Link>
             <ChevronRight className="h-4 w-4" />
-            <Link href={`/dashboard/${orgId}/settings`} className="hover:text-gray-700 transition-colors">
+            <Link href={getDashboardPath(orgId, "settings")} className="hover:text-gray-700 transition-colors">
               Settings
             </Link>
             <ChevronRight className="h-4 w-4" />

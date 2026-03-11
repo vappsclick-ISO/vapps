@@ -69,7 +69,25 @@ export default function CreateAuditStep5Page() {
         if (!cancelled) {
           setCurrentUserRole(plan.currentUserRole ?? null);
           setPlanStatus(plan.status ?? null);
-          setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
+          const step5 = (plan as { step5Data?: any }).step5Data;
+          if (step5 && typeof step5 === "object") {
+            if (step5.verificationOutcome === "effective" || step5.verificationOutcome === "ineffective") {
+              setVerificationOutcome(step5.verificationOutcome);
+            }
+            if (typeof step5.auditorComments === "string") {
+              setAuditorComments(step5.auditorComments);
+            }
+            if (Array.isArray(step5.evidenceFiles)) {
+              setEvidenceFiles(step5.evidenceFiles as { name: string; key: string }[]);
+            }
+            if (typeof step5.verificationStartedAt === "string") {
+              setVerificationStartedAt(step5.verificationStartedAt);
+            } else {
+              setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
+            }
+          } else {
+            setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
+          }
         }
         const membersRes = await apiClient.getMembers(orgId);
         if (!cancelled && membersRes.teamMembers?.length && plan.leadAuditorUserId) {
@@ -105,7 +123,36 @@ export default function CreateAuditStep5Page() {
 
   const canEditStep5 =
     currentUserRole === "assigned_auditor" &&
-    !["pending_closure", "closed"].includes(planStatus ?? "");
+    !["pending_closure", "closed", "verification_ineffective"].includes(planStatus ?? "");
+
+  /** Ineffective: return to auditee (Step 4). Effective: move to Step 6 for lead auditor. */
+  const handleSaveStep5 = async () => {
+    if (!orgId || !auditPlanId) return;
+    setSaving(true);
+    try {
+      await apiClient.updateAuditPlan(orgId, auditPlanId, {
+        step5Data: {
+          verificationOutcome,
+          auditorComments,
+          evidenceFiles,
+          verificationStartedAt,
+        },
+      });
+      if (verificationOutcome === "ineffective") {
+        await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
+        toast.success("Returned to Auditee for revision.");
+      } else {
+        await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
+        toast.success("Saved. Audit moved to Step 6 for Lead Auditor.");
+      }
+      router.push(`/dashboard/${orgId}/audit`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -315,33 +362,13 @@ export default function CreateAuditStep5Page() {
             variant="outline"
             className="border-gray-300 text-gray-700 hover:bg-gray-50"
             disabled={saving || !auditPlanId || !canEditStep5}
-            onClick={async () => {
-              if (!orgId || !auditPlanId) return;
-              setSaving(true);
-              try {
-                await apiClient.updateAuditPlan(orgId, auditPlanId, {
-                  step5Data: {
-                    verificationOutcome,
-                    auditorComments,
-                    evidenceFiles,
-                    verificationStartedAt,
-                  },
-                });
-                toast.success("Saved as draft.");
-                router.push(`/dashboard/${orgId}/audit`);
-              } catch (e) {
-                console.error(e);
-                toast.error("Failed to save.");
-              } finally {
-                setSaving(false);
-              }
-            }}
+            onClick={handleSaveStep5}
           >
             {saving ? "Saving…" : "Save"}
           </Button>
           <Button
             className="bg-green-600 text-white hover:bg-green-700"
-            disabled={proceedingToStep6 || !auditPlanId || !canEditStep5}
+            disabled={proceedingToStep6 || saving || !auditPlanId || !canEditStep5}
             onClick={async () => {
               if (!orgId || !auditPlanId) return;
               setProceedingToStep6(true);
@@ -354,18 +381,28 @@ export default function CreateAuditStep5Page() {
                     verificationStartedAt,
                   },
                 });
-                await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
-                toast.success("Submitted to Lead Auditor.");
-                router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
+                if (verificationOutcome === "ineffective") {
+                  await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
+                  toast.success("Returned to Auditee for revision.");
+                  router.push(`/dashboard/${orgId}/audit`);
+                } else {
+                  await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
+                  toast.success("Submitted to Lead Auditor.");
+                  router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
+                }
               } catch (e) {
                 console.error(e);
-                toast.error("Failed to submit.");
+                toast.error(verificationOutcome === "ineffective" ? "Failed to return to Auditee." : "Failed to submit.");
               } finally {
                 setProceedingToStep6(false);
               }
             }}
           >
-            {proceedingToStep6 ? "Submitting…" : "Submit to Lead Auditor"}
+            {proceedingToStep6
+              ? (verificationOutcome === "ineffective" ? "Returning…" : "Submitting…")
+              : verificationOutcome === "ineffective"
+                ? "Return to Auditee"
+                : "Submit to Lead Auditor"}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

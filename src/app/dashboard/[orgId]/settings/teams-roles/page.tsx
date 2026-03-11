@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -187,7 +188,7 @@ export default function TeamsRolesPage() {
       <div className="flex justify-between items-start">
         <div>
           <div className="text-sm text-gray-500 mb-1 flex items-center gap-1">
-            <Link href={`/dashboard/${orgId}/settings`} className="hover:text-gray-700">Settings</Link>
+            <Link href={getDashboardPath(orgId, "settings")} className="hover:text-gray-700">Settings</Link>
             <span>/</span>
             <span>Sites & Departments</span>
           </div>
@@ -378,7 +379,7 @@ export default function TeamsRolesPage() {
                   <CardTitle>Role Permissions (RBAC)</CardTitle>
                   <CardDescription>System role access. Only the organization owner can change these on the Permissions page.</CardDescription>
                 </div>
-                <Link href={`/dashboard/${orgId}/settings/permissions`}>
+                <Link href={getDashboardPath(orgId, "settings/permissions")}>
                   <Button variant="outline">Edit Permissions</Button>
                 </Link>
               </div>

@@ -20,9 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { getOrgDashboardUrl } from "@/lib/subdomain";
 
 interface Organization {
   id: string;
+  slug?: string;
   name: string;
   role: string;
   createdAt: string;
@@ -40,7 +42,9 @@ const HomePage = () => {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await axios.get("/api/organization/list");
+      const response = await axios.get("/api/organization/list", {
+        withCredentials: true,
+      });
       setOrganizations(response.data.organizations || []);
     } catch (error) {
       console.error("Error fetching organizations:", error);
@@ -103,7 +107,15 @@ const HomePage = () => {
                   {organizations.map((org, index) => (
                     <div
                       key={org.id}
-                      onClick={() => router.push(`/dashboard/${org.id}`)}
+                      onClick={() => {
+                        const slug = org.slug ?? org.id;
+                        const url = getOrgDashboardUrl(slug);
+                        if (url.startsWith("http")) {
+                          window.location.href = url;
+                        } else {
+                          router.push(url);
+                        }
+                      }}
                       className="site-card 
                         w-full md:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]
                         border border-[#0000001A] rounded-2xl p-5 

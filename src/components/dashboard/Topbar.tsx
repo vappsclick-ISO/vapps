@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { apiClient } from "@/lib/api-client";
+import { getDashboardPath } from "@/lib/subdomain";
 
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -93,12 +94,30 @@ function formatRelativeTime(dateString: string): string {
     return date.toLocaleDateString();
 }
 
+/** Build href for notification so clicking navigates to the relevant screen. */
+function getNotificationHref(slug: string | undefined, a: NotificationActivity): string | null {
+    if (!slug) return null;
+    if (a.entityType === "audit_plan" && a.entityId) {
+        const base = getDashboardPath(slug, "audit/create/1");
+        return `${base}?auditPlanId=${encodeURIComponent(a.entityId)}`;
+    }
+    if (a.processId) {
+        const action = (a.action || "").toLowerCase();
+        if (action.includes("issue")) return getDashboardPath(slug, `processes/${a.processId}/issues`);
+        if (action.includes("sprint")) return getDashboardPath(slug, `processes/${a.processId}/backlog`);
+        if (action.includes("review") || action.includes("verification")) return getDashboardPath(slug, `processes/${a.processId}/timeline`);
+        return getDashboardPath(slug, `processes/${a.processId}`);
+    }
+    return null;
+}
+
 export default function Topbar() {
     const params = useParams();
     const orgId = params?.orgId as string | undefined;
     const [selectedLang, setSelectedLang] = useState("English");
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
     const [dismissing, setDismissing] = useState(false);
+    const [notifOpen, setNotifOpen] = useState(false);
 
     const { data: notifData, isLoading: notificationsLoading } = useQuery({
         queryKey: ["notifications", orgId],
@@ -202,7 +221,7 @@ export default function Topbar() {
                 <Button variant="outline">Ask AI Assistant</Button>
 
                 {/* Notification Popover */}
-                <Popover>
+                <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                     <PopoverTrigger className="relative p-2 rounded-full hover:bg-accent">
                         <Bell className="h-5 w-5" />
 
@@ -236,24 +255,45 @@ export default function Topbar() {
                             ) : visibleNotifications.length === 0 ? (
                                 <p className="text-sm text-[#6A7282] py-4">No recent activity</p>
                             ) : (
-                                visibleNotifications.map((a) => (
-                                    <div
-                                        key={a.id}
-                                        className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB] group relative pr-9"
-                                    >
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 text-[#6A7282] hover:text-[#0A0A0A]"
-                                            onClick={() => handleDismissOne(a.id)}
-                                            aria-label="Remove notification"
+                                visibleNotifications.map((a) => {
+                                    const href = getNotificationHref(orgId, a);
+                                    const content = (
+                                        <>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 text-[#6A7282] hover:text-[#0A0A0A] z-10"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleDismissOne(a.id);
+                                                }}
+                                                aria-label="Remove notification"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <p className="text-[#0A0A0A] text-sm pr-6">{formatNotificationMessage(a)}</p>
+                                            <span className="text-xs text-[#6A7282]">{formatRelativeTime(a.createdAt)}</span>
+                                        </>
+                                    );
+                                    return href ? (
+                                        <Link
+                                            key={a.id}
+                                            href={href}
+                                            className="flex flex-col gap-1.5 p-4 rounded-xl bg-[#F9FAFB] group relative pr-9 hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                                            onClick={() => setNotifOpen(false)}
                                         >
-                                            <X className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <p className="text-[#0A0A0A] text-sm pr-6">{formatNotificationMessage(a)}</p>
-                                        <span className="text-xs text-[#6A7282]">{formatRelativeTime(a.createdAt)}</span>
-                                    </div>
-                                ))
+                                            {content}
+                                        </Link>
+                                    ) : (
+                                        <div
+                                            key={a.id}
+                                            className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB] group relative pr-9"
+                                        >
+                                            {content}
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </PopoverContent>
@@ -309,7 +349,7 @@ export default function Topbar() {
                     <DropdownMenuContent align="end" className="w-48 p-1">
 
                         <DropdownMenuItem asChild>
-                            <Link href={orgId ? `/dashboard/${orgId}/account` : "#"}>
+                            <Link href={orgId ? getDashboardPath(orgId, "account") : "#"}>
                                 Account Settings
                             </Link>
                         </DropdownMenuItem>

@@ -19,10 +19,11 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     // Get organization to identify owner
     const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
 
@@ -35,7 +36,7 @@ export async function GET(
 
     // Fetch members (UserOrganization + User)
     const memberships = await prisma.userOrganization.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: resolvedOrgId },
       select: {
         id: true,
         userId: true,
@@ -52,7 +53,7 @@ export async function GET(
     // Fetch pending invitations; role comes from tenant (or master if migrated).
     // Include siteId, processId, name so we can show site/process for invited members.
     const pendingInvites = await prisma.invitation.findMany({
-      where: { organizationId: orgId, status: "pending" },
+      where: { organizationId: resolvedOrgId, status: "pending" },
       select: {
         id: true,
         email: true,
@@ -96,13 +97,13 @@ export async function GET(
             });
           }
 
-          if (nonOwnerUserIds.length > 0) {
+          if (allMemberUserIds.length > 0) {
             const siteRows = await client.query<{ user_id: string; site_id: string; site_name: string }>(
               `SELECT su.user_id::text as user_id, su.site_id::text as site_id, s.name as site_name
                FROM site_users su
                INNER JOIN sites s ON s.id = su.site_id::text
                WHERE su.user_id::text = ANY($1)`,
-              [nonOwnerUserIds]
+              [allMemberUserIds]
             );
             siteRows.rows.forEach((row) => {
               if (!siteAssignments[row.user_id]) siteAssignments[row.user_id] = [];
@@ -123,7 +124,7 @@ export async function GET(
                INNER JOIN processes p ON p.id = pu.process_id::text
                INNER JOIN sites s ON s.id = p."siteId"
                WHERE pu.user_id::text = ANY($1)`,
-              [nonOwnerUserIds]
+              [allMemberUserIds]
             );
             processRows.rows.forEach((row) => {
               if (!processAssignments[row.user_id]) processAssignments[row.user_id] = [];
@@ -256,7 +257,7 @@ export async function GET(
 
     const teamMembers = [...activeMembers, ...invitedMembers];
 
-    return NextResponse.json({ teamMembers });
+    return NextResponse.json({ teamMembers, currentUserId: ctx.user.id });
   } catch (error: any) {
     console.error("Error fetching organization members:", error);
     const message = error?.message || "Unknown error";

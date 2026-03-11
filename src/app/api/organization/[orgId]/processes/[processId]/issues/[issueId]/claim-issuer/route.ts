@@ -19,6 +19,7 @@ export async function POST(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     if (!orgId || !processId || !issueId) {
       return NextResponse.json(
@@ -27,7 +28,7 @@ export async function POST(
       );
     }
 
-    client = await getTenantClient(orgId);
+    client = await getTenantClient(resolvedOrgId);
 
     // Ensure issuer column exists (tenant may not have run migration 011)
     await client.query(

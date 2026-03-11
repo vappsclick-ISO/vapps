@@ -17,6 +17,7 @@ import {
   Check
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -571,7 +572,7 @@ export default function ProcessesListPage() {
             return (
               <div
                 key={process.id}
-                onClick={() => router.push(`/dashboard/${orgId}/processes/${process.id}`)}
+                onClick={() => router.push(getDashboardPath(orgId, `processes/${process.id}`))}
                 className="border rounded-lg p-4 hover:shadow-md transition flex flex-col justify-between cursor-pointer"
               >
                 <div className="flex justify-between items-center mb-4">
@@ -803,7 +804,7 @@ export default function ProcessesListPage() {
               return (
                 <div
                   key={process.id}
-                  onClick={() => router.push(`/dashboard/${orgId}/processes/${process.id}`)}
+                  onClick={() => router.push(getDashboardPath(orgId, `processes/${process.id}`))}
                   className="list border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:shadow-md transition cursor-pointer"
                 >
                   {/* Left */}

@@ -95,6 +95,7 @@ model VerificationToken {
 model Organization {
   id          String               @id @default(uuid())
   name        String
+  slug        String              @unique
   ownerId     String
   permissions Json?                // Role-based permission matrix: { [key]: { admin, manager, member } }
   createdAt   DateTime             @default(now())

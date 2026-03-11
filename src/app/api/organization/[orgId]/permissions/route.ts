@@ -26,9 +26,10 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -71,9 +72,10 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
     if (!org) {
@@ -117,7 +119,7 @@ export async function PUT(
 
     const stored = permissionRowsToStored(validated);
     await prisma.organization.update({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       data: { permissions: stored as object },
     });
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getDashboardPath } from "@/lib/subdomain";
 import {
   FileText,
   Calendar,
@@ -48,7 +49,7 @@ export default function AuditWorkflowHeader({
 }: AuditWorkflowHeaderProps) {
   const getStepHref = (step: number) => {
     if (!orgId) return "#";
-    const base = `/dashboard/${orgId}/audit/create/${step}`;
+    const base = getDashboardPath(orgId, `audit/create/${step}`);
     return stepQuery ? `${base}?${stepQuery}` : base;
   };
 
