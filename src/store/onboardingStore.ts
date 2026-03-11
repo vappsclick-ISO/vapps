@@ -8,6 +8,7 @@ import { persist } from "zustand/middleware";
  */
 
 export interface Step1Data {
+  slug?: string;
   companyName?: string;
   registrationId?: string;
   address?: string;

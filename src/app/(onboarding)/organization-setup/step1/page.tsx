@@ -31,6 +31,7 @@ export default function Step1Form() {
   const form = useForm<Step1Values>({
     resolver: zodResolver(step1Schema),
     defaultValues: saved || {
+      slug: "",
       companyName: "",
       registrationId: "",
       address: "",
@@ -82,6 +83,21 @@ export default function Step1Form() {
               <FormItem>
                 <FormLabel>Registration ID</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField name="slug" control={form.control} render={({ field }) => (
+              <FormItem>
+                <FormLabel>Organization URL slug *</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="e.g. my-company"
+                    onChange={(e) => field.onChange(e.target.value.toLowerCase().replace(/\s/g, "").replace(/[^a-z0-9-]/g, ""))}
+                  />
+                </FormControl>
+                <p className="text-xs text-gray-500">Used in your dashboard URL (e.g. {field.value || "yourslug"}.vapps.click). No spaces; lowercase letters, numbers and hyphens only.</p>
                 <FormMessage />
               </FormItem>
             )} />

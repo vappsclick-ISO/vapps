@@ -3,7 +3,6 @@ import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
 import { createTenantDatabase, runTenantMigrations } from "@/lib/db-creator";
 import { storeTenantData } from "@/lib/store-tenant-data";
-import { generateUniqueOrgSlug } from "@/lib/org-utils";
 import { OnboardingData } from "@/store/onboardingStore";
 import { z } from "zod";
 
@@ -24,6 +23,11 @@ const defaultWidgets = {
 const createOrganizationSchema = z.object({
   step1: z
     .object({
+      slug: z
+        .string()
+        .min(2, "Slug must be at least 2 characters")
+        .max(50, "Slug must be at most 50 characters")
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug: only lowercase letters, numbers, and hyphens"),
       companyName: z.string().optional(),
       registrationId: z.string().optional(),
       address: z.string().optional(),
@@ -199,6 +203,32 @@ export async function POST(req: NextRequest) {
     const data = validationResult.data;
 
     // 3. Validate required fields
+    const slug = data.step1.slug?.trim().toLowerCase();
+    if (!slug || slug.length < 2) {
+      return NextResponse.json(
+        { error: "Organization URL slug is required (at least 2 characters)" },
+        { status: 400 }
+      );
+    }
+    if (/\s/.test(slug)) {
+      return NextResponse.json(
+        { error: "Spaces are not allowed in the slug" },
+        { status: 400 }
+      );
+    }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      return NextResponse.json(
+        { error: "Slug may only contain lowercase letters, numbers, and hyphens (no spaces)" },
+        { status: 400 }
+      );
+    }
+    const existingSlug = await prisma.organization.findUnique({ where: { slug } });
+    if (existingSlug) {
+      return NextResponse.json(
+        { error: "This URL slug is already taken. Please choose another." },
+        { status: 409 }
+      );
+    }
     if (!data.step1.companyName || data.step1.companyName.trim().length === 0) {
       return NextResponse.json(
         { error: "Company name is required" },
@@ -232,11 +262,9 @@ export async function POST(req: NextRequest) {
       // Use transaction for all master DB operations
       // Increased timeout to 30 seconds to handle database creation which can take time
       // especially when database is reset or under load
-      const slug = await generateUniqueOrgSlug(data.step1.companyName!.trim());
-
       const result = await prisma.$transaction(
         async (tx) => {
-          // Create organization first (with slug for URL-friendly routes)
+          // Create organization first (slug from step1, validated above)
           const org = await tx.organization.create({
             data: {
               name: data.step1.companyName!.trim(),
@@ -333,7 +361,7 @@ export async function POST(req: NextRequest) {
         message: "Organization created successfully",
         organization: {
           id: organization.id,
-          slug: organization.slug ?? slug,
+          slug: organization.slug ?? organization.id,
           name: organization.name,
           createdAt: organization.createdAt,
         },
