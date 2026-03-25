@@ -11,6 +11,7 @@ import {
   Plus,
   ClipboardList,
   Users,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -67,6 +68,9 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
 
   // On subdomain use short paths (/processes); otherwise /dashboard/slug/processes
   const link = (path: string) => getDashboardPath(slug, path);
+
+  // Documents is now a standalone module (like `audit`), not process-scoped.
+  const documentsPath = "documents";
 
   // Sync selectedSite from query data (preserve localStorage or use first site)
   useEffect(() => {
@@ -399,7 +403,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             Audit
           </Link>
         </div>
-        <div className="">
+        {/* Teams tab removed (replaced with Documents). */}
+        {/* <div className="">
           <Link
             href={link("settings/teams")}
             className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
@@ -412,7 +417,25 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             <Users size={18} />
             Teams
           </Link>
-        </div>
+        </div> */}
+
+        {/* Documents tab (process-scoped). */}
+        {documentsPath ? (
+          <div className="">
+            <Link
+              href={link(documentsPath)}
+              className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
+                ${pathname.includes("/documents")
+                  ? "bg-gray-100 font-medium text-gray-900"
+                  : "text-gray-600 hover:bg-gray-50"
+                }
+              `}
+            >
+              <FileText size={18} />
+              Documents
+            </Link>
+          </div>
+        ) : null}
       </nav>
       <div className="footer p-5">
         <Link

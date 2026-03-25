@@ -28,10 +28,10 @@ const SettingSidebar = () => {
     { title: 'Roles', subtitle: 'Leadership role definitions', icon: UserCog, path: 'settings/roles' },
     { title: 'Teams', subtitle: 'Organization users', icon: Users, path: 'settings/teams' },
     { title: 'Permissions', subtitle: 'Role-based access control', icon: Shield, path: 'settings/permissions' },
-    { title: 'Authentication & Access', subtitle: 'Login and security', icon: Shield, path: 'settings/authentication-access' },
+    // { title: 'Authentication & Access', subtitle: 'Login and security', icon: Shield, path: 'settings/authentication-access' },
     { title: 'Billing & Subscription', subtitle: 'Plans and payments', icon: CreditCard, path: 'settings/billing-subscription' },
-    { title: 'Integrations', subtitle: 'Connected apps and APIs', icon: Plug, path: 'settings/integrations' },
-    { title: 'Notifications', subtitle: 'Email and alerts', icon: Bell, path: 'settings/notifications' },
+    // { title: 'Integrations', subtitle: 'Connected apps and APIs', icon: Plug, path: 'settings/integrations' },
+    // { title: 'Notifications', subtitle: 'Email and alerts', icon: Bell, path: 'settings/notifications' },
     { title: 'KPI & Reports', subtitle: 'Metrics and dashboards', icon: BarChart, path: 'settings/kpi-reports' },
     { title: 'Audit Checklist', subtitle: 'Question management', icon: FileCheck, path: 'settings/audit-checklist' },
   ].map((item) => ({ ...item, href: getDashboardPath(slug, item.path) }));

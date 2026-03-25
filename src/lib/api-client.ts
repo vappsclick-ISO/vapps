@@ -365,6 +365,31 @@ class ApiClient {
     return this.get<{ plans: any[] }>(`/organization/${orgId}/audit/plans`);
   }
 
+  /** All org audit plans in progress (not closed). For dashboard Upcoming Audits. */
+  getUpcomingAuditPlans(orgId: string) {
+    return this.get<{ plans: Array<{ id: string; title: string | null; auditNumber: string | null; status: string; plannedDate: string | null }> }>(
+      `/organization/${orgId}/audit/plans/upcoming`
+    );
+  }
+
+  /** Organization-wide dashboard stats (same for all org members). */
+  getDashboardStats(orgId: string) {
+    return this.get<{
+      processCount: number;
+      openIssuesCount: number;
+      upcomingAuditsCount: number;
+      complianceScore: number;
+    }>(`/organization/${orgId}/dashboard-stats`);
+  }
+
+  /** Chart data for dashboard: issues created/completed per month, issues by status. */
+  getDashboardCharts(orgId: string) {
+    return this.get<{
+      lineChart: Array<{ month: string; created: number; completed: number }>;
+      pieChart: Array<{ status: string; count: number; fill: string }>;
+    }>(`/organization/${orgId}/dashboard-charts`);
+  }
+
   /** Create audit plan (Step 2 Submit to Auditee). */
   createAuditPlan(orgId: string, data: {
     auditProgramId: string;
@@ -908,6 +933,17 @@ class ApiClient {
   getNotifications(orgId: string, limit?: number) {
     return this.get<{ activities: any[]; dismissedIds: string[] }>(
       `/organization/${orgId}/notifications`,
+      limit ? { limit: limit.toString() } : undefined
+    );
+  }
+
+  /**
+   * Get organization-wide recent activity (same for everyone in the org).
+   * Used by dashboard "Recent Activity" card.
+   */
+  getOrganizationActivity(orgId: string, limit?: number) {
+    return this.get<{ activities: any[] }>(
+      `/organization/${orgId}/activity`,
       limit ? { limit: limit.toString() } : undefined
     );
   }

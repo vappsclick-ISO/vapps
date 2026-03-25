@@ -27,8 +27,20 @@ const s3Client = new S3Client({
   },
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME!;
-const UPLOAD_FOLDER = process.env.AWS_S3_UPLOAD_FOLDER || "issue-reviews"; // Default folder for issue review files
+// Two buckets – you set TWO env vars so the app knows which bucket is which:
+//   AWS_S3_BUCKET_NAME   = documents bucket (e.g. vapps-documents)  → avatars, Froala, issue uploads
+//   AWS_S3_BUCKET_AUDIT  = audit bucket (e.g. vapp-uploads-prod)     → audit workflow uploads only
+// Same AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION are used for both.
+const BUCKET_DOCUMENTS = process.env.AWS_S3_BUCKET_NAME!;
+const BUCKET_AUDIT = process.env.AWS_S3_BUCKET_AUDIT || BUCKET_DOCUMENTS; // fallback to documents if not set
+const UPLOAD_FOLDER = process.env.AWS_S3_UPLOAD_FOLDER || "issue-reviews";
+
+/** Keys under this prefix are in the audit bucket; all other keys are in the documents bucket. */
+const AUDIT_KEY_PREFIX = "audit-documents/";
+
+function getBucketForKey(key: string): string {
+  return key.startsWith(AUDIT_KEY_PREFIX) ? BUCKET_AUDIT : BUCKET_DOCUMENTS;
+}
 
 /**
  * Generate a unique file key for S3 storage
@@ -49,15 +61,18 @@ export function generateFileKey(
  * @param file - File buffer or stream
  * @param key - S3 object key (path)
  * @param contentType - MIME type of the file
+ * @param options.useAuditBucket - If true, upload to audit bucket (vapp-uploads-prod). Otherwise use documents bucket (vapps-documents).
  * @returns S3 object key and URL metadata
  */
 export async function uploadFileToS3(
   file: Buffer | Uint8Array,
   key: string,
-  contentType: string
+  contentType: string,
+  options?: { useAuditBucket?: boolean }
 ): Promise<{ key: string; url: string; size: number }> {
-  if (!BUCKET_NAME) {
-    throw new Error("AWS_S3_BUCKET_NAME environment variable is not set. Please configure your .env file.");
+  const bucket = options?.useAuditBucket ? BUCKET_AUDIT : BUCKET_DOCUMENTS;
+  if (!bucket) {
+    throw new Error("AWS_S3_BUCKET_NAME (and optionally AWS_S3_BUCKET_AUDIT) must be set in environment variables.");
   }
 
   if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
@@ -66,13 +81,11 @@ export async function uploadFileToS3(
 
   try {
     const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: bucket,
       Key: key,
       Body: file,
       ContentType: contentType,
-      // Server-side encryption (SSE-S3)
       ServerSideEncryption: "AES256",
-      // Metadata for tracking
       Metadata: {
         uploadedAt: new Date().toISOString(),
       },
@@ -80,27 +93,22 @@ export async function uploadFileToS3(
 
     await s3Client.send(command);
 
-    // Return the key (not a public URL, since bucket is private)
-    // The URL will be generated via presigned URL when needed
     return {
       key,
-      url: `s3://${BUCKET_NAME}/${key}`, // Internal reference
+      url: `s3://${bucket}/${key}`,
       size: file.length,
     };
   } catch (error: any) {
     console.error("[S3 Upload Error]:", error);
-    
-    // Provide more helpful error messages
     if (error.name === "InvalidAccessKeyId" || error.name === "SignatureDoesNotMatch") {
       throw new Error("Invalid AWS credentials. Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.");
     } else if (error.name === "NoSuchBucket") {
-      throw new Error(`S3 bucket "${BUCKET_NAME}" does not exist. Please create it or check AWS_S3_BUCKET_NAME.`);
+      throw new Error(`S3 bucket "${bucket}" does not exist. Check AWS_S3_BUCKET_NAME / AWS_S3_BUCKET_AUDIT.`);
     } else if (error.name === "AccessDenied") {
-      throw new Error(`Access denied to S3 bucket "${BUCKET_NAME}". Please check IAM permissions.`);
+      throw new Error(`Access denied to S3 bucket "${bucket}". Please check IAM permissions.`);
     } else if (error.$metadata?.httpStatusCode === 403) {
       throw new Error("Access forbidden. Please check your AWS IAM user has s3:PutObject permission.");
     }
-    
     throw new Error(`Failed to upload file to S3: ${error.message || error.name || "Unknown error"}`);
   }
 }
@@ -115,13 +123,14 @@ export async function getPresignedDownloadUrl(
   key: string,
   expiresIn: number = 3600 // 1 hour default
 ): Promise<string> {
-  if (!BUCKET_NAME) {
+  const bucket = getBucketForKey(key);
+  if (!bucket) {
     throw new Error("AWS_S3_BUCKET_NAME environment variable is not set");
   }
 
   try {
     const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: bucket,
       Key: key,
     });
 
@@ -139,13 +148,14 @@ export async function getPresignedDownloadUrl(
  * @returns File metadata if exists, null otherwise
  */
 export async function checkFileExists(key: string): Promise<{ size: number; contentType: string; lastModified: Date } | null> {
-  if (!BUCKET_NAME) {
+  const bucket = getBucketForKey(key);
+  if (!bucket) {
     throw new Error("AWS_S3_BUCKET_NAME environment variable is not set");
   }
 
   try {
     const command = new HeadObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: bucket,
       Key: key,
     });
 
@@ -170,13 +180,14 @@ export async function checkFileExists(key: string): Promise<{ size: number; cont
  * @param key - S3 object key
  */
 export async function deleteFileFromS3(key: string): Promise<void> {
-  if (!BUCKET_NAME) {
+  const bucket = getBucketForKey(key);
+  if (!bucket) {
     throw new Error("AWS_S3_BUCKET_NAME environment variable is not set");
   }
 
   try {
     const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: bucket,
       Key: key,
     });
 

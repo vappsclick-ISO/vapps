@@ -440,7 +440,11 @@ export default function EditUserDialog({
                     </SelectContent>
                   </Select>
                   {errors.process && (
-                    <div className="flex items-center gap-1 text-sm text-red-500">
+                    <div className="flex items-center gap-1 text-sm text-red-500">@cannot ('update', $post) 
+                      
+                    @elsecannot ('create', $post) 
+                    
+                    @endcannot
                       <AlertCircle className="h-4 w-4" />
                       <span>{errors.process}</span>
                     </div>

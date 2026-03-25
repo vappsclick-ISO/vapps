@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     const pathParts = [prefix, orgId || "unknown", auditPlanId || "draft", `step-${step || "0"}`, unique];
     const key = pathParts.join("/");
 
-    await uploadFileToS3(buffer, key, file.type);
+    const auditBucket = process.env.AWS_S3_BUCKET_AUDIT || process.env.AWS_S3_BUCKET_NAME;
+    await uploadFileToS3(buffer, key, file.type, { useAuditBucket: true });
 
     const link = `/api/files/download?key=${encodeURIComponent(key)}`;
     return NextResponse.json({
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       name: file.name,
       size: file.size,
       type: file.type,
-      url: `s3://${process.env.AWS_S3_BUCKET_NAME}/${key}`,
+      url: `s3://${auditBucket}/${key}`,
     });
   } catch (err: any) {
     console.error("[Audit Upload Error]:", err);

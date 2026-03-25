@@ -1,7 +1,6 @@
-"use client";
-
 import DocumentsContent from "@/components/documents/DocumentsContent";
 
-export default function DocumentsPage() {
+export default function DocumentsDashboardPage() {
   return <DocumentsContent />;
 }
+

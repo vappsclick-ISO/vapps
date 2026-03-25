@@ -1,8 +1,34 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 /** Subdomains that should NOT be rewritten (main app: login, org list). */
 const RESERVED_SUBDOMAINS = new Set(["app", "www", "localhost"]);
+
+/** Session cookie name – must match authOptions.cookies.sessionToken.name in auth.ts */
+const SESSION_COOKIE_NAME =
+  process.env.NODE_ENV === "production"
+    ? "__Secure-next-auth.session-token"
+    : "next-auth.session-token";
+
+/**
+ * Paths that are public and do NOT require authentication.
+ * Users not logged in can access these without being redirected to /auth.
+ */
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/auth") ||
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname.startsWith("/forgot-password") ||
+    pathname === "/invite" ||
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico" ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/privacy")
+  );
+}
 
 /**
  * Get host from request (x-forwarded-host when behind proxy, else Host header).
@@ -57,11 +83,27 @@ function shouldSkipRewrite(pathname: string): boolean {
 }
 
 /**
- * Proxy: only subdomain extraction and rewrite to /dashboard/[orgSlug].
+ * Proxy: auth redirect for protected routes, then subdomain extraction and rewrite to /dashboard/[orgSlug].
  * Organization validation is done in dashboard layout (notFound() if missing).
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Public paths: no auth check
+  if (!isPublicPath(pathname)) {
+    const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+    const token = await getToken({
+      req: request,
+      secret: secret ?? undefined,
+      cookieName: SESSION_COOKIE_NAME,
+      secureCookie: process.env.NODE_ENV === "production",
+    });
+    if (!token?.sub) {
+      const authUrl = new URL("/auth", request.url);
+      authUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(authUrl);
+    }
+  }
 
   if (shouldSkipRewrite(pathname)) {
     return NextResponse.next();

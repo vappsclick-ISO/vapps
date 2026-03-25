@@ -106,20 +106,22 @@ export async function GET(
         const placeholders = allowedProcessIds.map((_, i) => `$${i + 1}`).join(", ");
         const activityResult = await client.query(
           `SELECT 
-            id,
-            "processId",
-            "userId",
-            "userName",
-            "userEmail",
-            action,
-            "entityType",
-            "entityId",
-            "entityTitle",
-            details,
-            "createdAt"
-          FROM activity_log
-          WHERE "processId" IN (${placeholders})
-          ORDER BY "createdAt" DESC
+            al.id,
+            al."processId",
+            al."userId",
+            al."userName",
+            al."userEmail",
+            al.action,
+            al."entityType",
+            al."entityId",
+            al."entityTitle",
+            al.details,
+            al."createdAt",
+            p.name as "processName"
+          FROM activity_log al
+          LEFT JOIN processes p ON p.id = al."processId"
+          WHERE al."processId" IN (${placeholders})
+          ORDER BY al."createdAt" DESC
           LIMIT $${allowedProcessIds.length + 1}`,
           [...allowedProcessIds, limit]
         );

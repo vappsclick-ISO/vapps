@@ -272,59 +272,6 @@ export default function OrganizationProfilePage() {
               )}
             </div>
           </div>
-
-
-          {/* Primary Brand Color */}
-          <div className="space-y-2">
-            <Label>Primary Brand Color</Label>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-12 h-12 rounded border border-gray-300"
-                style={{ backgroundColor: formData.brandColor }}
-              />
-              {isEditing ? (
-                <Input
-                  type="color"
-                  value={formData.brandColor}
-                  onChange={(e) =>
-                    setFormData({ ...formData, brandColor: e.target.value })
-                  }
-                  className="w-32"
-                />
-              ) : (
-                <Input value={formData.brandColor} disabled className="w-32" />
-              )}
-            </div>
-          </div>
-
-          {/* Brand Font */}
-          <div className="space-y-2">
-            <Label>Brand Font</Label>
-
-            {isEditing ? (
-              <Select
-                value={formData.brandFont}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, brandFont: value })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select font" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  <SelectItem value="Arial">Arial</SelectItem>
-                  <SelectItem value="Helvetica">Helvetica</SelectItem>
-                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-                  <SelectItem value="Georgia">Georgia</SelectItem>
-                  <SelectItem value="Roboto">Roboto</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input value={formData.brandFont || ""} disabled />
-            )}
-          </div>
-
         </CardContent>
       </Card>
 
